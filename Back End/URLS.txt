@@ -1,0 +1,60 @@
+URL
+snorlax678910
+
+Create new customer profile
+POST http://localhost:2141/api/customers/register
+Input:
+{
+  "username": "",
+  "email": "",
+  "password": "",
+  "first_name": "",
+  "last_name": "",
+  "phone": "",
+  "address": ""
+}
+
+Read customer profile
+GET http://localhost:2141/api/customers/me
+
+Update customer profile
+PUT http://localhost:2141/api/customers/me
+
+Delete customer profile
+DELETE http://localhost:2141/api/customers/me
+
+Login customer profile(LOGIN FIRST TO GET TOKEN, 2HR LIMIT)
+POST http://localhost:2141/api/customers/login
+Input:
+{
+  "usernameOrEmail": "",
+  "password": ""
+}
+
+Create a new product
+POST http://localhost:2141/api/products
+Input:
+{
+  "product_name": "",
+  "brand": "",
+  "model": "",
+  "description": "",
+  "category_id": "",
+  "supplier_id": "",
+  "unit_price": ,
+  "cost_price":  ,
+  "is_active": true/false,
+  "specs": {
+    "cpu": "",
+    "ram_gb": ,
+    "storage_gb": ,
+    "storage_type": "",
+    "gpu": "",
+    "screen_size_inches": 5.6,
+    "refresh_rate_hz": ,
+    "resolution": "",
+    "has_fingerprint": false/true,
+    "os": ""
+  },
+  "tags": ["", "", "", "", ""]
+}

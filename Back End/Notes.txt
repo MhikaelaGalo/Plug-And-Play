@@ -1,0 +1,16 @@
+Remember to test:
+what they have the same name or email?
+what if the password is weak? can I instruct it to detect the passrword strength?
+What will it do if people have the same full name?
+what if the customer want to delete their acc?
+
+sorting, how does that work?
+promo codes? when customer inputs code, how does it work in the back
+admin acc, only they can access the back
+
+
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjdXN0b21lcklkIjoiNjkxZDNjMTk1ODRhYTc1YzU1YzJlMjk2IiwidXNlcm5hbWUiOiJsZW1vbnlfc25vcnR5IiwiaWF0IjoxNzYzNTM3OTc1LCJleHAiOjE3NjM1NDUxNzV9.7wGYJ1q0V0LD7MZJYTFvGiXUElJwnCydM9JROd1TxbE
+
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjdXN0b21lcklkIjoiNjkxZDNjMTk1ODRhYTc1YzU1YzJlMjk2IiwidXNlcm5hbWUiOiJsZW1vbmdyYWIiLCJpYXQiOjE3NjM1NTU5NzksImV4cCI6MTc2MzU2MzE3OX0.YJcqb4C1uS_rKEBE3GkACoEfmP0wJBcBmhc7kmeCf9E
+
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjdXN0b21lcklkIjoiNjkxZDcyODEwMmFiY2E3ZTRkMDk5MDY1IiwidXNlcm5hbWUiOiJzbm9ybGF4IiwiaWF0IjoxNzYzNTU4MzI0LCJleHAiOjE3NjM1NjU1MjR9.exauUZCX_-OPbtlrxmEFlT3yvUrtnkDh6jUkSCUecA8
