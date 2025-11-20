@@ -41,13 +41,13 @@ startServer();
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"]; // "Bearer <token>"
   const token = authHeader && authHeader.split(" ")[1];
-
+  
   if (!token) {
     return res.status(401).json({ error: "Access token required" });
   }
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET); // { customerId, username, ... }
+    const payload = jwt.verify(token, JWT_SECRET); 
     req.user = payload;
     next();
   } catch (err) {
@@ -55,11 +55,19 @@ const authenticateToken = (req, res, next) => {
   }
 };
 
+// ADMIN AUTHENTICATION
+const requireAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).json({ message: "Admin access required" });
+  }
+  next();
+};
+
 app.get("/", (req, res) => {
   res.send("THE ADVENTURE IS STARTING");
 });
 
-// POST /generateToken - quick demo token generator
+// POST TOKEN GENERATOR
 app.post("/generateToken", async (req, res) => {
   const { username } = req.body;
 
@@ -340,6 +348,7 @@ app.post("/api/customers/login", async (req, res) => {
       {
         customerId: customer._id,
         username: customer.username,
+        role: "customer",
       },
       JWT_SECRET,
       { expiresIn: "2h" }
@@ -362,108 +371,11 @@ app.post("/api/customers/login", async (req, res) => {
   }
 });
 
-// PRODUCTS: LIST + SEARCH + PRICE FILTER
-app.get("/api/products", async (req, res) => {
-  try {
-    const products = db.collection("products");
-    const { q, minPrice, maxPrice } = req.query;
-
-    const filter = {};
-
-    // --- keyword search (q) ---
-    if (q) {
-      const terms = q
-        .split(" ")
-        .map((t) => t.trim())
-        .filter((t) => t.length > 0);
-
-      filter.$and = terms.map((term) => {
-        const orConditions = [
-          { product_name: { $regex: term, $options: "i" } },
-          { description:  { $regex: term, $options: "i" } },
-          { brand:        { $regex: term, $options: "i" } },
-          { model:        { $regex: term, $options: "i" } },
-          { tags:         { $regex: term, $options: "i" } },
-          { "specs.cpu":  { $regex: term, $options: "i" } },
-          { "specs.gpu":  { $regex: term, $options: "i" } },
-          { "specs.os":   { $regex: term, $options: "i" } }
-        ];
-
-        // if the term is all digits, also check numeric specs
-        if (/^\d+$/.test(term)) {
-          const num = Number(term);
-          orConditions.push({ "specs.storage_gb": num });
-          orConditions.push({ "specs.ram_gb": num });
-        }
-
-        return { $or: orConditions };
-      });
-    }
-
-    // --- numeric price filters (unit_price) ---
-    const priceFilter = {};
-    if (minPrice !== undefined) {
-      const min = Number(minPrice);
-      if (!Number.isNaN(min)) {
-        priceFilter.$gte = min;
-      }
-    }
-    if (maxPrice !== undefined) {
-      const max = Number(maxPrice);
-      if (!Number.isNaN(max)) {
-        priceFilter.$lte = max;
-      }
-    }
-    if (Object.keys(priceFilter).length > 0) {
-      filter.unit_price = priceFilter;
-    }
-
-    const data = await products.find(filter).toArray();
-
-    res.json({
-      data,
-      count: data.length
-    });
-  } catch (err) {
-    console.error("Error fetching products:", err);
-    res.status(500).json({ message: "Error fetching products" });
-  }
-});
-
-// ----------------------
-//  PRODUCTS: GET ONE
-//  GET /api/products/:id
-// ----------------------
-app.get("/api/products/:id", async (req, res) => {
-  try {
-    const products = db.collection("products");
-    const { id } = req.params;
-
-    if (!isValidObjectId(id)) {
-      return res.status(400).json({ message: "Invalid product ID" });
-    }
-
-    const product = await products.findOne({
-      _id: new mongodb.ObjectId(id),
-    });
-
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
-
-    res.json(product);
-  } catch (err) {
-    console.error("Error fetching product:", err);
-    res.status(500).json({ message: "Error fetching product" });
-  }
-});
-
-// ----------------------
-//  PRODUCTS: CREATE
+// CREATE PRODUCTS: 
 //  POST /api/products
 //  (protected - needs token)
 // ----------------------
-app.post("/api/products", authenticateToken, async (req, res) => {
+app.post("/api/products", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const products = db.collection("products");
     const {
@@ -533,12 +445,106 @@ app.post("/api/products", authenticateToken, async (req, res) => {
   }
 });
 
+// READ PRODUCTS: LIST + SEARCH + PRICE FILTER
+app.get("/api/products", async (req, res) => {
+  try {
+    const products = db.collection("products");
+    const { q, minPrice, maxPrice } = req.query;
+
+    const filter = {};
+
+    // --- keyword search (q) ---
+    if (q) {
+      const terms = q
+        .split(" ")
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+
+      filter.$and = terms.map((term) => {
+        const orConditions = [
+          { product_name: { $regex: term, $options: "i" } },
+          { description:  { $regex: term, $options: "i" } },
+          { brand:        { $regex: term, $options: "i" } },
+          { model:        { $regex: term, $options: "i" } },
+          { tags:         { $regex: term, $options: "i" } },
+          { "specs.cpu":  { $regex: term, $options: "i" } },
+          { "specs.gpu":  { $regex: term, $options: "i" } },
+          { "specs.os":   { $regex: term, $options: "i" } }
+        ];
+
+        // if the term is all digits, also check numeric specs
+        if (/^\d+$/.test(term)) {
+          const num = Number(term);
+          orConditions.push({ "specs.storage_gb": num });
+          orConditions.push({ "specs.ram_gb": num });
+        }
+
+        return { $or: orConditions };
+      });
+    }
+
+    // --- numeric price filters (unit_price) ---
+    const priceFilter = {};
+    if (minPrice !== undefined) {
+      const min = Number(minPrice);
+      if (!Number.isNaN(min)) {
+        priceFilter.$gte = min;
+      }
+    }
+    if (maxPrice !== undefined) {
+      const max = Number(maxPrice);
+      if (!Number.isNaN(max)) {
+        priceFilter.$lte = max;
+      }
+    }
+    if (Object.keys(priceFilter).length > 0) {
+      filter.unit_price = priceFilter;
+    }
+
+    const data = await products.find(filter).toArray();
+
+    res.json({
+      data,
+      count: data.length
+    });
+  } catch (err) {
+    console.error("Error fetching products:", err);
+    res.status(500).json({ message: "Error fetching products" });
+  }
+});
+
+// READ PRODUCTS: GET ONE
+//  GET /api/products/:id
 // ----------------------
-//  PRODUCTS: UPDATE
+app.get("/api/products/:id", async (req, res) => {
+  try {
+    const products = db.collection("products");
+    const { id } = req.params;
+
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ message: "Invalid product ID" });
+    }
+
+    const product = await products.findOne({
+      _id: new mongodb.ObjectId(id),
+    });
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    res.json(product);
+  } catch (err) {
+    console.error("Error fetching product:", err);
+    res.status(500).json({ message: "Error fetching product" });
+  }
+});
+
+//  UPDATE PRODUCTS: 
 //  PUT /api/products/:id
 //  (protected - needs token)
 // ----------------------
-app.put("/api/products/:id", authenticateToken, async (req, res) => {
+app.put("/api/products/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const products = db.collection("products");
     const { id } = req.params;
@@ -600,12 +606,11 @@ app.put("/api/products/:id", authenticateToken, async (req, res) => {
   }
 });
 
-// ----------------------
-//  PRODUCTS: DELETE (SOFT)
+// DELETE PRODUCTS: 
 //  DELETE /api/products/:id
 //  (protected - needs token)
 // ----------------------
-app.delete("/api/products/:id", authenticateToken, async (req, res) => {
+app.delete("/api/products/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const products = db.collection("products");
     const { id } = req.params;
@@ -627,5 +632,115 @@ app.delete("/api/products/:id", authenticateToken, async (req, res) => {
   } catch (err) {
     console.error("Error deleting product:", err);
     res.status(500).json({ message: "Error deleting product" });
+  }
+});
+
+// CREATE ADMIN: REGISTER
+//  POST /api/admin/register
+//  (you can use this once in Postman to create an admin user)
+// ----------------------
+app.post("/api/admin/register", async (req, res) => {
+  try {
+    const admins = db.collection("admin_users");
+    const { username, email, password, full_name, role } = req.body;
+
+    if (!username || !email || !password) {
+      return res
+        .status(400)
+        .json({ message: "username, email and password are required" });
+    }
+
+    const existing = await admins.findOne({
+      $or: [{ username }, { email }],
+    });
+    if (existing) {
+      return res
+        .status(409)
+        .json({ message: "Username or email already exists" });
+    }
+
+    const password_hash = await bcrypt.hash(password, 10);
+    const now = new Date();
+
+    const newAdmin = {
+      username,
+      email,
+      password_hash,
+      full_name: full_name || null,
+      role: role || "admin",  // e.g. "admin" or "manager"
+      is_active: true,
+      created_at: now,
+      last_login: null,
+    };
+
+    const result = await admins.insertOne(newAdmin);
+
+    res.status(201).json({
+      _id: result.insertedId,
+      username,
+      email,
+      role: newAdmin.role,
+    });
+  } catch (err) {
+    console.error("Error registering admin:", err);
+    res.status(500).json({ message: "Error registering admin" });
+  }
+});
+
+//  ADMIN: LOGIN
+//  POST /api/admin/login
+// ----------------------
+app.post("/api/admin/login", async (req, res) => {
+  try {
+    const admins = db.collection("admin_users");
+    const { usernameOrEmail, password } = req.body;
+
+    if (!usernameOrEmail || !password) {
+      return res
+        .status(400)
+        .json({ message: "usernameOrEmail and password are required." });
+    }
+
+    const admin = await admins.findOne({
+      $or: [{ username: usernameOrEmail }, { email: usernameOrEmail }],
+    });
+
+    if (!admin || !admin.is_active) {
+      return res.status(401).json({ message: "Invalid credentials." });
+    }
+
+    const ok = await bcrypt.compare(password, admin.password_hash || "");
+    if (!ok) {
+      return res.status(401).json({ message: "Invalid credentials." });
+    }
+
+    const token = jwt.sign(
+      {
+        adminId: admin._id,
+        username: admin.username,
+        role: admin.role || "admin",   // 👈 IMPORTANT
+      },
+      JWT_SECRET,
+      { expiresIn: "2h" }
+    );
+
+    await admins.updateOne(
+      { _id: admin._id },
+      { $set: { last_login: new Date() } }
+    );
+
+    res.json({
+      message: "Admin login success",
+      token,
+      admin: {
+        _id: admin._id,
+        username: admin.username,
+        email: admin.email,
+        role: admin.role,
+      },
+    });
+  } catch (err) {
+    console.error("Error in admin login:", err);
+    res.status(500).json({ message: "Admin login failed" });
   }
 });

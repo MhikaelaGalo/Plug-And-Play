@@ -14,3 +14,15 @@ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjdXN0b21lcklkIjoiNjkxZDNjMTk1ODRhYTc1YzU
 eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjdXN0b21lcklkIjoiNjkxZDNjMTk1ODRhYTc1YzU1YzJlMjk2IiwidXNlcm5hbWUiOiJsZW1vbmdyYWIiLCJpYXQiOjE3NjM1NTU5NzksImV4cCI6MTc2MzU2MzE3OX0.YJcqb4C1uS_rKEBE3GkACoEfmP0wJBcBmhc7kmeCf9E
 
 eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjdXN0b21lcklkIjoiNjkxZDcyODEwMmFiY2E3ZTRkMDk5MDY1IiwidXNlcm5hbWUiOiJzbm9ybGF4IiwiaWF0IjoxNzYzNTU4MzI0LCJleHAiOjE3NjM1NjU1MjR9.exauUZCX_-OPbtlrxmEFlT3yvUrtnkDh6jUkSCUecA8
+
+Admin
+{
+  "username": "Ciara_Snorlax",
+  "email": "ciaraco@example.com",
+  "password": "snorlax",
+  "full_name": "Ciara Comendador",
+  "role": "admin"
+}
+
+
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZG1pbklkIjoiNjkxZTMxNjE2YWU4YTRlNjFlYzU2MGQ5IiwidXNlcm5hbWUiOiJDaWFyYV9Tbm9ybGF4Iiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzYzNTg2NTExLCJleHAiOjE3NjM1OTM3MTF9._hZIhrx-c9uRGCHfi4adEYvpWGsZ6CmKUrsyrLoHjmU
