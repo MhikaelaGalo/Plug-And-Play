@@ -63,6 +63,22 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
+// CUSTOMER AUTHENTICATION
+const requireCustomer = (req, res, next) => {
+  if (!req.user || !req.user.customerId) {
+    return res.status(403).json({ message: "Customer token required" });
+  }
+  next();
+};
+
+// ROLE AUTHENTICATION
+const requireRole = (...allowed) => (req, res, next) => {
+  if (!req.user || !allowed.includes(req.user.role)) {
+    return res.status(403).json({ message: "Access denied" });
+  }
+  next();
+};
+
 app.get("/", (req, res) => {
   res.send("THE ADVENTURE IS STARTING");
 });
@@ -152,7 +168,7 @@ app.post("/api/customers/register", async (req, res) => {
 //  READ CUSTOMER: VIEW PROFILE
 //  GET /api/customers/me  (needs token)
 // ----------------------
-app.get("/api/customers/me", authenticateToken, async (req, res) => {
+app.get("/api/customers/me", authenticateToken, requireCustomer, async (req, res) => {
   try {
     const customers = db.collection("customers");
     const customerId = req.user.customerId; // from JWT
@@ -176,7 +192,7 @@ app.get("/api/customers/me", authenticateToken, async (req, res) => {
 //  UPDATE CUSTOMER: UPDATE OWN PROFILE
 //  PUT /api/customers/me  (needs token)
 // ----------------------
-app.put("/api/customers/me", authenticateToken, async (req, res) => {
+app.put("/api/customers/me", authenticateToken, requireCustomer, async (req, res) => {
   try {
     const customers = db.collection("customers");
     const customerId = req.user.customerId; // from JWT
@@ -234,7 +250,7 @@ app.put("/api/customers/me", authenticateToken, async (req, res) => {
 //  UPDATE CUSTOMER: CHANGE PASSWORD
 //  PUT /api/customers/me/password  (needs token)
 // ----------------------
-app.put("/api/customers/me/password", authenticateToken, async (req, res) => {
+app.put("/api/customers/me/password", authenticateToken, requireCustomer, async (req, res) => {
   try {
     const customers = db.collection("customers");
     const customerId = req.user.customerId; // from JWT
@@ -289,7 +305,7 @@ app.put("/api/customers/me/password", authenticateToken, async (req, res) => {
 //  DELETE CUSTOMER: DELETE OWN ACCOUNT
 //  DELETE /api/customers/me  (needs token)
 // ----------------------
-app.delete("/api/customers/me", authenticateToken, async (req, res) => {
+app.delete("/api/customers/me", authenticateToken, requireCustomer, async (req, res) => {
   try {
     const customers = db.collection("customers");
     const customerId = req.user.customerId; // from JWT
@@ -378,70 +394,54 @@ app.post("/api/customers/login", async (req, res) => {
 app.post("/api/products", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const products = db.collection("products");
-    const {
-       product_name,
-       description,
-       category_id,
-       supplier_id,
-       unit_price,
-       cost_price,
-       is_active,
-       brand,
-       model,
-       specs,
-       tags
-    } = req.body;
 
-    // Required: name + price
-    if (!product_name || unit_price === undefined) {
-      return res.status(400).json({
-        message: "product_name and unit_price are required",
-      });
+    // Allow either a single object or an array of objects
+    const incoming = Array.isArray(req.body) ? req.body : [req.body];
+
+    if (incoming.length === 0) {
+      return res.status(400).json({ message: "No products provided" });
     }
 
-    const unitPriceNumber = Number(unit_price);
-    const costPriceNumber =
-      cost_price !== undefined && cost_price !== null
-        ? Number(cost_price)
-        : null;
-
-    if (
-      Number.isNaN(unitPriceNumber) ||
-      (costPriceNumber !== null && Number.isNaN(costPriceNumber))
-    ) {
-      return res.status(400).json({
-        message: "unit_price and cost_price must be numbers",
-      });
-    }
-
+    // Map each item to our cleaned product structure
     const now = new Date();
+    const docs = incoming.map((p) => {
+      const unitPriceNumber = Number(p.unit_price);
+      const costPriceNumber =
+        p.cost_price !== undefined && p.cost_price !== null
+          ? Number(p.cost_price)
+          : null;
 
-    const newProduct = {
-    product_name,
-    description: description || "",
-    category_id: category_id || null,
-    supplier_id: supplier_id || null,
-    unit_price: unitPriceNumber,
-    cost_price: costPriceNumber,
-    is_active: is_active === undefined ? true : Boolean(is_active),
-    brand: brand || null,
-    model: model || null,
-    specs: specs || {},
-    tags: Array.isArray(tags) ? tags : [],
-    created_at: now,
-    updated_at: now,
-  };
+      if (!p.product_name || Number.isNaN(unitPriceNumber)) {
+        throw new Error("Each product must have product_name and valid unit_price");
+      }
 
+      return {
+        product_name: p.product_name,
+        description: p.description || "",
+        category_id: p.category_id || null,
+        supplier_id: p.supplier_id || null,
+        unit_price: unitPriceNumber,
+        cost_price: costPriceNumber,
+        is_active: p.is_active === undefined ? true : Boolean(p.is_active),
+        brand: p.brand || null,
+        model: p.model || null,
+        specs: p.specs || {},
+        tags: Array.isArray(p.tags) ? p.tags : [],
+        created_at: now,
+        updated_at: now,
+      };
+    });
 
-    const result = await products.insertOne(newProduct);
+    const result = await products.insertMany(docs);
 
     res.status(201).json({
-      _id: result.insertedId,
-      ...newProduct,
+      message: "Products created",
+      insertedCount: result.insertedCount,
+      ids: result.insertedIds,
     });
   } catch (err) {
-    console.error("Error creating product:", err);
-    res.status(500).json({ message: "Error creating product" });
+    console.error("Error creating products:", err);
+    res.status(500).json({ message: "Error creating products", error: err.message });
   }
 });
 
@@ -744,3 +744,4 @@ app.post("/api/admin/login", async (req, res) => {
     res.status(500).json({ message: "Admin login failed" });
   }
 });
+
