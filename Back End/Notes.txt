@@ -30,3 +30,11 @@ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZG1pbklkIjoiNjkxZTMxNjE2YWU4YTRlNjFlYzU
 eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZG1pbklkIjoiNjkxZTMxNjE2YWU4YTRlNjFlYzU2MGQ5IiwidXNlcm5hbWUiOiJDaWFyYV9Tbm9ybGF4Iiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzYzNjExNDQ5LCJleHAiOjE3NjM2MTg2NDl9.nuxgNVKvQZDvRgQhYXlzUNCuVanVUB7OycfCtUhLoBI
 
 In GET /api/products, might later add filter.is_active = true so “deleted” products don’t show up
+
+{
+    "message": "Products created",
+    "insertedCount": 1,
+    "ids": {
+        "0": "692bf6fb7a545a0542529dbb"
+    }
+}
