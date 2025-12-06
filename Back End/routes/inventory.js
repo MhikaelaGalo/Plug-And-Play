@@ -1,20 +1,21 @@
 import { Router } from "express";
 import mongodb from "mongodb";
-import { getDb, isValidObjectId } from "../config/db.js";
+import { getDb, isValidObjectId } from "../config/config.js"; // 👈 FIXED IMPORT
 import { authenticateToken, requireAdmin } from "../middleware/auth.js";
 
 const router = Router();
 
-
 // CREATE INVENTORY RECORD
 // POST /api/inventory
 // (admin only)
-app.post("/api/inventory", authenticateToken, requireAdmin, async (req, res) => {
+router.post("/", authenticateToken, requireAdmin, async (req, res) => {
   try {
+    const db = getDb();
     const inventory = db.collection("inventory");
     const products = db.collection("products");
 
-    const { product_id, stock_quantity, reorder_level, max_stock_level } = req.body;
+    const { product_id, stock_quantity, reorder_level, max_stock_level } =
+      req.body;
 
     if (!product_id) {
       return res.status(400).json({ message: "product_id is required" });
@@ -73,51 +74,25 @@ app.post("/api/inventory", authenticateToken, requireAdmin, async (req, res) => 
 // READ INVENTORY LIST
 // GET /api/inventory
 // (admin only – management view)
-app.get("/api/inventory", authenticateToken, requireAdmin, async (req, res) => {
+router.get("/", authenticateToken, requireAdmin, async (req, res) => {
   try {
+    const db = getDb();
     const inventory = db.collection("inventory");
     const data = await inventory.find({}).toArray();
 
-    res.json({
-      data,
-      count: data.length,
-    });
+    res.json(data);
   } catch (err) {
-    console.error("Error fetching inventory:", err);
-    res.status(500).json({ message: "Error fetching inventory" });
+    console.error("Error fetching inventory list:", err);
+    res.status(500).json({ message: "Error fetching inventory list" });
   }
 });
 
-// READ INVENTORY BY INVENTORY ID
-// GET /api/inventory/:id
-// (admin only)
-app.get("/api/inventory/:id", authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const inventory = db.collection("inventory");
-    const { id } = req.params;
-
-    if (!isValidObjectId(id)) {
-      return res.status(400).json({ message: "Invalid inventory ID" });
-    }
-
-    const item = await inventory.findOne({ _id: new mongodb.ObjectId(id) });
-
-    if (!item) {
-      return res.status(404).json({ message: "Inventory record not found" });
-    }
-
-    res.json(item);
-  } catch (err) {
-    console.error("Error fetching inventory record:", err);
-    res.status(500).json({ message: "Error fetching inventory record" });
-  }
-});
-
-// OPTIONAL: READ INVENTORY BY PRODUCT ID
+// READ INVENTORY BY PRODUCT ID
 // GET /api/inventory/by-product/:productId
 // (can be used later by frontend to show stock)
-app.get("/api/inventory/by-product/:productId", async (req, res) => {
+router.get("/by-product/:productId", async (req, res) => {
   try {
+    const db = getDb();
     const inventory = db.collection("inventory");
     const { productId } = req.params;
 
@@ -126,7 +101,6 @@ app.get("/api/inventory/by-product/:productId", async (req, res) => {
     }
 
     const productObjectId = new mongodb.ObjectId(productId);
-
     const item = await inventory.findOne({ product_id: productObjectId });
 
     if (!item) {
@@ -140,51 +114,32 @@ app.get("/api/inventory/by-product/:productId", async (req, res) => {
   }
 });
 
-// UPDATE INVENTORY
+// UPDATE INVENTORY RECORD (by Inventory ID)
 // PUT /api/inventory/:id
 // (admin only)
-app.put("/api/inventory/:id", authenticateToken, requireAdmin, async (req, res) => {
+router.put("/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
+    const db = getDb();
     const inventory = db.collection("inventory");
     const { id } = req.params;
+    const { stock_quantity, reorder_level, max_stock_level, last_restocked } =
+      req.body;
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({ message: "Invalid inventory ID" });
     }
 
     const updates = {};
-    const { stock_quantity, reorder_level, max_stock_level } = req.body;
+    if (stock_quantity !== undefined)
+      updates.stock_quantity = Number(stock_quantity);
+    if (reorder_level !== undefined)
+      updates.reorder_level = Number(reorder_level);
+    if (max_stock_level !== undefined)
+      updates.max_stock_level = Number(max_stock_level);
 
-    if (stock_quantity !== undefined) {
-      const num = Number(stock_quantity);
-      if (Number.isNaN(num)) {
-        return res
-          .status(400)
-          .json({ message: "stock_quantity must be a number" });
-      }
-      updates.stock_quantity = num;
-      updates.last_restocked = new Date(); // treat as restock when quantity is changed
-    }
-
-    if (reorder_level !== undefined) {
-      const num = Number(reorder_level);
-      if (Number.isNaN(num)) {
-        return res
-          .status(400)
-          .json({ message: "reorder_level must be a number" });
-      }
-      updates.reorder_level = num;
-    }
-
-    if (max_stock_level !== undefined) {
-      const num = Number(max_stock_level);
-      if (Number.isNaN(num)) {
-        return res
-          .status(400)
-          .json({ message: "max_stock_level must be a number" });
-      }
-      updates.max_stock_level = num;
-    }
+    // Manual update to restock date (e.g., when a shipment arrives)
+    if (last_restocked !== undefined && last_restocked)
+      updates.last_restocked = new Date(last_restocked);
 
     if (Object.keys(updates).length === 0) {
       return res
@@ -213,8 +168,9 @@ app.put("/api/inventory/:id", authenticateToken, requireAdmin, async (req, res) 
 // DELETE INVENTORY RECORD
 // DELETE /api/inventory/:id
 // (admin only – hard delete, no is_active field here)
-app.delete("/api/inventory/:id", authenticateToken, requireAdmin, async (req, res) => {
+router.delete("/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
+    const db = getDb();
     const inventory = db.collection("inventory");
     const { id } = req.params;
 
@@ -232,8 +188,8 @@ app.delete("/api/inventory/:id", authenticateToken, requireAdmin, async (req, re
 
     res.json({ message: "Inventory record deleted successfully" });
   } catch (err) {
-    console.error("Error deleting inventory record:", err);
-    res.status(500).json({ message: "Error deleting inventory record" });
+    console.error("Error deleting inventory:", err);
+    res.status(500).json({ message: "Error deleting inventory" });
   }
 });
 

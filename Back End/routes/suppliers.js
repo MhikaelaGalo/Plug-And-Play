@@ -1,17 +1,19 @@
 import { Router } from "express";
 import mongodb from "mongodb";
-import { getDb, isValidObjectId } from "../config/db.js";
+import { getDb, isValidObjectId } from "../config/config.js"; // 👈 FIXED IMPORT
 import { authenticateToken, requireAdmin } from "../middleware/auth.js";
 
 const router = Router();
 
-// CREATE SUPPLIER 
+// CREATE SUPPLIER
 // POST /api/suppliers
 // (admin only)
-app.post("/api/suppliers", authenticateToken, requireAdmin, async (req, res) => {
+router.post("/", authenticateToken, requireAdmin, async (req, res) => {
   try {
+    const db = getDb();
     const suppliers = db.collection("suppliers");
-    const { supplier_name, contact_person, email, phone, address, is_active } = req.body;
+    const { supplier_name, contact_person, email, phone, address, is_active } =
+      req.body;
 
     if (!supplier_name) {
       return res.status(400).json({ message: "supplier_name is required" });
@@ -54,32 +56,31 @@ app.post("/api/suppliers", authenticateToken, requireAdmin, async (req, res) => 
 
 // READ SUPPLIERS (LIST)
 // GET /api/suppliers?includeInactive=true
-app.get("/api/suppliers", async (req, res) => {
+router.get("/", async (req, res) => {
   try {
+    const db = getDb();
     const suppliers = db.collection("suppliers");
     const { includeInactive } = req.query;
 
     const filter = {};
     if (includeInactive !== "true") {
-      filter.is_active = true; // default: only active suppliers
+      filter.is_active = true;
     }
 
-    const data = await suppliers
-      .find(filter)
-      .sort({ supplier_name: 1 })
-      .toArray();
+    const data = await suppliers.find(filter).toArray();
 
-    res.json({ data, count: data.length });
+    res.json(data);
   } catch (err) {
     console.error("Error fetching suppliers:", err);
     res.status(500).json({ message: "Error fetching suppliers" });
   }
 });
 
-// READ ONE SUPPLIER
+// READ SINGLE SUPPLIER
 // GET /api/suppliers/:id
-app.get("/api/suppliers/:id", async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
+    const db = getDb();
     const suppliers = db.collection("suppliers");
     const { id } = req.params;
 
@@ -103,8 +104,9 @@ app.get("/api/suppliers/:id", async (req, res) => {
 // UPDATE SUPPLIER
 // PUT /api/suppliers/:id
 // (admin only)
-app.put("/api/suppliers/:id", authenticateToken, requireAdmin, async (req, res) => {
+router.put("/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
+    const db = getDb();
     const suppliers = db.collection("suppliers");
     const { id } = req.params;
 
@@ -113,7 +115,8 @@ app.put("/api/suppliers/:id", authenticateToken, requireAdmin, async (req, res) 
     }
 
     const updates = {};
-    const { supplier_name, contact_person, email, phone, address, is_active } = req.body;
+    const { supplier_name, contact_person, email, phone, address, is_active } =
+      req.body;
 
     if (supplier_name !== undefined) updates.supplier_name = supplier_name;
     if (contact_person !== undefined) updates.contact_person = contact_person;
@@ -149,8 +152,9 @@ app.put("/api/suppliers/:id", authenticateToken, requireAdmin, async (req, res) 
 // DELETE SUPPLIER (SOFT DELETE)
 // DELETE /api/suppliers/:id
 // (admin only)
-app.delete("/api/suppliers/:id", authenticateToken, requireAdmin, async (req, res) => {
+router.delete("/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
+    const db = getDb();
     const suppliers = db.collection("suppliers");
     const { id } = req.params;
 
@@ -167,7 +171,7 @@ app.delete("/api/suppliers/:id", authenticateToken, requireAdmin, async (req, re
       return res.status(404).json({ message: "Supplier not found" });
     }
 
-    res.json({ message: "Supplier deactivated (is_active = false)" });
+    res.json({ message: "Supplier deactivated (is_active: false)" });
   } catch (err) {
     console.error("Error deleting supplier:", err);
     res.status(500).json({ message: "Error deleting supplier" });

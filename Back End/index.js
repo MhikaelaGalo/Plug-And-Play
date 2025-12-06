@@ -2,12 +2,18 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 
-import { connectToDb } from "./config/db.js";
+import { connectToDb } from "./config/config.js";
 
 // your route files:
 import customerRoutes from "./routes/customers.js";
 import productRoutes from "./routes/products.js";
 
+// 👈 FIX: ADDED ALL MISSING IMPORTS
+import adminRoutes from "./routes/admin.js";
+import categoryRoutes from "./routes/categories.js";
+import supplierRoutes from "./routes/suppliers.js";
+import inventoryRoutes from "./routes/inventory.js";
+import orderRoutes from "./routes/orders.js";
 // later: adminRoutes, categoryRoutes, supplierRoutes, inventoryRoutes, orderRoutes, etc.
 
 dotenv.config();
@@ -29,7 +35,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/inventory", inventoryRoutes);
-//app.use("/api/orders", orderRoutes);
+app.use("/api/orders", orderRoutes); // 👈 FIX: UNCOMMENTED
 
 async function startServer() {
   try {
@@ -44,4 +50,3 @@ async function startServer() {
 }
 
 startServer();
-

@@ -1,7 +1,7 @@
 // routes/orders.js
 import { Router } from "express";
 import mongodb from "mongodb";
-import { getDb, isValidObjectId } from "../config/db.js";
+import { getDb, isValidObjectId } from "../config/config.js"; // 👈 FIXED IMPORT
 import {
   authenticateToken,
   requireAdmin,
@@ -20,7 +20,7 @@ const PAYMENT_STATUSES = ["pending", "paid", "failed"];
 
 // CUSTOMER: PLACE ORDER
 // POST /api/orders
-router.post("/orders", authenticateToken, requireCustomer, async (req, res) => {
+router.post("/", authenticateToken, requireCustomer, async (req, res) => {
   try {
     const db = getDb();
     const orders = db.collection("orders");
@@ -114,13 +114,11 @@ router.post("/orders", authenticateToken, requireCustomer, async (req, res) => {
     // 4) Compute totals
     let totalAmount = 0;
     const detailDocs = [];
-
     for (const item of cleanedItems) {
       const product = productMap.get(String(item.productObjectId));
       const unitPrice = Number(product.unit_price) || 0;
       const subtotal = unitPrice * item.quantity;
       totalAmount += subtotal;
-
       detailDocs.push({
         order_id: null, // fill after order insert
         product_id: item.productObjectId,
@@ -131,7 +129,6 @@ router.post("/orders", authenticateToken, requireCustomer, async (req, res) => {
     }
 
     const now = new Date();
-
     // 5) Create order header document
     const orderDoc = {
       customer_id: new mongodb.ObjectId(customerId),
@@ -143,7 +140,6 @@ router.post("/orders", authenticateToken, requireCustomer, async (req, res) => {
       shipping_address: shipping_address || null,
       updated_at: now,
     };
-
     const orderResult = await orders.insertOne(orderDoc);
     const orderId = orderResult.insertedId;
 
@@ -151,19 +147,16 @@ router.post("/orders", authenticateToken, requireCustomer, async (req, res) => {
     for (const d of detailDocs) {
       d.order_id = orderId;
     }
-
     await orderDetails.insertMany(detailDocs);
 
-    // 7) Update inventory stock (subtract quantities)
-    for (const item of cleanedItems) {
-      await inventoryCol.updateOne(
-        { product_id: item.productObjectId },
-        {
-          $inc: { stock_quantity: -item.quantity },
-          $set: { updated_at: new Date() },
-        }
-      );
-    }
+    // 7) Decrement inventory stock (atomically)
+    const inventoryOps = cleanedItems.map((item) => ({
+      updateOne: {
+        filter: { product_id: item.productObjectId },
+        update: { $inc: { stock_quantity: -item.quantity } },
+      },
+    }));
+    await inventoryCol.bulkWrite(inventoryOps);
 
     res.status(201).json({
       message: "Order placed successfully",
@@ -171,7 +164,7 @@ router.post("/orders", authenticateToken, requireCustomer, async (req, res) => {
         _id: orderId,
         ...orderDoc,
       },
-      items: detailDocs,
+      details: detailDocs,
     });
   } catch (err) {
     console.error("Error placing order:", err);
@@ -179,65 +172,54 @@ router.post("/orders", authenticateToken, requireCustomer, async (req, res) => {
   }
 });
 
-// CUSTOMER: VIEW OWN ORDERS
+// CUSTOMER: VIEW OWN ORDERS LIST
 // GET /api/orders/me
-router.get(
-  "/orders/me",
-  authenticateToken,
-  requireCustomer,
-  async (req, res) => {
-    try {
-      const db = getDb();
-      const orders = db.collection("orders");
-      const customerId = new mongodb.ObjectId(req.user.customerId);
-
-      const data = await orders
-        .find({ customer_id: customerId })
-        .sort({ order_date: -1 })
-        .toArray();
-
-      res.json({
-        data,
-        count: data.length,
-      });
-    } catch (err) {
-      console.error("Error fetching customer orders:", err);
-      res.status(500).json({ message: "Error fetching customer orders" });
-    }
-  }
-);
-
-// CUSTOMER / ADMIN: VIEW SINGLE ORDER + ITEMS
-// GET /api/orders/:id
-router.get("/orders/:id", authenticateToken, async (req, res) => {
+router.get("/me", authenticateToken, requireCustomer, async (req, res) => {
   try {
     const db = getDb();
     const orders = db.collection("orders");
-    const orderDetails = db.collection("order_details");
+    const customerId = req.user.customerId;
+
+    const data = await orders
+      .find({ customer_id: new mongodb.ObjectId(customerId) })
+      .sort({ order_date: -1 })
+      .toArray();
+
+    res.json(data);
+  } catch (err) {
+    console.error("Error fetching customer orders:", err);
+    res.status(500).json({ message: "Error fetching orders" });
+  }
+});
+
+// CUSTOMER: VIEW SINGLE ORDER (WITH DETAILS)
+// GET /api/orders/:id
+router.get("/:id", authenticateToken, requireCustomer, async (req, res) => {
+  try {
+    const db = getDb();
+    const ordersCol = db.collection("orders");
+    const orderDetailsCol = db.collection("order_details");
     const { id } = req.params;
+    const customerId = req.user.customerId;
 
     if (!isValidObjectId(id)) {
       return res.status(400).json({ message: "Invalid order ID" });
     }
 
     const orderId = new mongodb.ObjectId(id);
-    const order = await orders.findOne({ _id: orderId });
+
+    // Find order, ensuring it belongs to the customer
+    const order = await ordersCol.findOne({
+      _id: orderId,
+      customer_id: new mongodb.ObjectId(customerId),
+    });
 
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    // Security: customers can only see their own orders
-    if (req.user.role === "customer") {
-      const myId = String(req.user.customerId);
-      if (String(order.customer_id) !== myId) {
-        return res
-          .status(403)
-          .json({ message: "Not allowed to view this order" });
-      }
-    }
-
-    const items = await orderDetails.find({ order_id: orderId }).toArray();
+    // Get details
+    const items = await orderDetailsCol.find({ order_id: orderId }).toArray();
 
     res.json({ order, items });
   } catch (err) {
@@ -247,7 +229,7 @@ router.get("/orders/:id", authenticateToken, async (req, res) => {
 });
 
 // ADMIN: LIST ALL ORDERS
-// GET /api/admin/orders?status=pending
+// GET /api/orders/admin/orders?status=pending
 router.get(
   "/admin/orders",
   authenticateToken,
@@ -255,93 +237,89 @@ router.get(
   async (req, res) => {
     try {
       const db = getDb();
-      const orders = db.collection("orders");
-      const { status } = req.query;
+      const ordersCol = db.collection("orders");
+      const { status, paymentStatus, customerId } = req.query;
 
       const filter = {};
       if (status && ORDER_STATUSES.includes(status)) {
         filter.order_status = status;
       }
+      if (paymentStatus && PAYMENT_STATUSES.includes(paymentStatus)) {
+        filter.payment_status = paymentStatus;
+      }
+      if (customerId && isValidObjectId(customerId)) {
+        filter.customer_id = new mongodb.ObjectId(customerId);
+      }
 
-      const data = await orders
+      const data = await ordersCol
         .find(filter)
         .sort({ order_date: -1 })
         .toArray();
 
-      res.json({
-        data,
-        count: data.length,
-      });
+      res.json(data);
     } catch (err) {
-      console.error("Error fetching all orders:", err);
-      res.status(500).json({ message: "Error fetching all orders" });
+      console.error("Error listing orders for admin:", err);
+      res.status(500).json({ message: "Error listing orders" });
     }
   }
 );
 
-// ADMIN: UPDATE ORDER STATUS / PAYMENT STATUS
-// PUT /api/admin/orders/:id/status
-router.put(
-  "/admin/orders/:id/status",
-  authenticateToken,
-  requireAdmin,
-  async (req, res) => {
-    try {
-      const db = getDb();
-      const orders = db.collection("orders");
-      const { id } = req.params;
-      const { order_status, payment_status } = req.body;
+// ADMIN: UPDATE ORDER STATUS
+// PUT /api/orders/:id/status
+router.put("/:id/status", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    const orders = db.collection("orders");
+    const { id } = req.params;
+    const { order_status, payment_status } = req.body;
 
-      if (!isValidObjectId(id)) {
-        return res.status(400).json({ message: "Invalid order ID" });
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ message: "Invalid order ID" });
+    }
+
+    const updates = {};
+
+    if (order_status !== undefined) {
+      if (!ORDER_STATUSES.includes(order_status)) {
+        return res.status(400).json({ message: "Invalid order_status value" });
       }
+      updates.order_status = order_status;
+    }
 
-      const updates = {};
-
-      if (order_status !== undefined) {
-        if (!ORDER_STATUSES.includes(order_status)) {
-          return res
-            .status(400)
-            .json({ message: "Invalid order_status value" });
-        }
-        updates.order_status = order_status;
-      }
-
-      if (payment_status !== undefined) {
-        if (!PAYMENT_STATUSES.includes(payment_status)) {
-          return res
-            .status(400)
-            .json({ message: "Invalid payment_status value" });
-        }
-        updates.payment_status = payment_status;
-      }
-
-      if (Object.keys(updates).length === 0) {
+    if (payment_status !== undefined) {
+      if (!PAYMENT_STATUSES.includes(payment_status)) {
         return res
           .status(400)
-          .json({ message: "No valid fields provided for update" });
+          .json({ message: "Invalid payment_status value" });
       }
-
-      updates.updated_at = new Date();
-
-      const result = await orders.updateOne(
-        { _id: new mongodb.ObjectId(id) },
-        { $set: updates }
-      );
-
-      if (result.matchedCount === 0) {
-        return res.status(404).json({ message: "Order not found" });
-      }
-
-      res.json({
-        message: "Order status updated successfully",
-        updates,
-      });
-    } catch (err) {
-      console.error("Error updating order status:", err);
-      res.status(500).json({ message: "Error updating order status" });
+      updates.payment_status = payment_status;
     }
+
+    if (Object.keys(updates).length === 0) {
+      return res
+        .status(400)
+        .json({ message: "No valid fields provided for update" });
+    }
+
+    updates.updated_at = new Date();
+
+    const result = await orders.updateOne(
+      { _id: new mongodb.ObjectId(id) },
+      { $set: updates }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    res.json({
+      message: "Order status updated successfully",
+      updates,
+    });
+  } catch (err) {
+    console.error("Error updating order status:", err);
+    res.status(500).json({ message: "Error updating order status" });
   }
-);
+});
 
 export default router;
