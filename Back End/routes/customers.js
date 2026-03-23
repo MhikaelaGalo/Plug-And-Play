@@ -1,56 +1,53 @@
-// backend/routes/customers.js
 import { Router } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import mongodb from "mongodb";
-import { getDb, isValidObjectId } from "../config/config.js"; // ← keep your path
+import { getDb, isValidObjectId } from "../config/config.js";
 import {
   authenticateToken,
   requireCustomer,
-  JWT_SECRET,
+  JWT_SECRET, //  Relies on imported secret
 } from "../middleware/auth.js";
 
 const router = Router();
 
-// ------------------------------
+// CREATE CUSTOMER: REGISTER
 // POST /api/customers/register
-// ------------------------------
+// ----------------------
 router.post("/register", async (req, res) => {
   try {
     const db = getDb();
     const customers = db.collection("customers");
-    const {
-      username,
-      email,
-      password,
-      first_name,
-      last_name,
-      phone,
-      address,
-    } = req.body;
 
+    const { username, email, password, first_name, last_name, phone, address } =
+      req.body;
+
+    // required fields
     if (!username || !email || !password || !first_name || !last_name) {
       return res.status(400).json({
-        message:
-          "Missing required fields: username, email, password, first_name, last_name.",
+        message: "Missing required fields.",
+        details:
+          "username, email, password, first_name, last_name are required.",
       });
     }
 
-    const emailNorm = String(email).trim().toLowerCase();
-    const exists = await customers.findOne({
-      $or: [{ username }, { email: emailNorm }],
+    // check if username OR email already exist
+    const existing = await customers.findOne({
+      $or: [{ username }, { email }],
     });
-    if (exists) {
+    if (existing) {
       return res
         .status(409)
         .json({ message: "Username or email already exists." });
     }
 
+    // hash password
     const password_hash = await bcrypt.hash(password, 10);
     const now = new Date();
-    const doc = {
+
+    const newCustomer = {
       username,
-      email: emailNorm,
+      email,
       password_hash,
       first_name,
       last_name,
@@ -62,56 +59,59 @@ router.post("/register", async (req, res) => {
       last_login: null,
     };
 
-    const result = await customers.insertOne(doc);
-    return res.status(201).json({
+    const result = await customers.insertOne(newCustomer);
+
+    // Respond without sending the password hash
+    res.status(201).json({
       message: "Customer registration successful",
       _id: result.insertedId,
-      username,
-      email: emailNorm,
-      first_name,
-      last_name,
+      username: newCustomer.username,
+      email: newCustomer.email,
+      first_name: newCustomer.first_name,
+      last_name: newCustomer.last_name,
     });
   } catch (err) {
     console.error("Error registering customer:", err);
-    return res.status(500).json({ message: "Error registering customer" });
+    res.status(500).json({ message: "Error registering customer" });
   }
 });
 
-// ------------------------------
-// POST /api/customers/login
-// Accepts: { usernameOrEmail, password } OR { email, password } OR { username, password }
-// ------------------------------
+// CUSTOMER LOGIN:
+// Final Endpoint: POST /api/customers/login
+// ----------------------
 router.post("/login", async (req, res) => {
   try {
-    const db = getDb();
+    const db = getDb(); // 👈 FIXED: Added getDb()
     const customers = db.collection("customers");
+    // Changed parameter name to be clear for frontend use
+    const { email, password } = req.body;
 
-    const { usernameOrEmail, email, username, password } = req.body || {};
-    const idRaw = (usernameOrEmail ?? email ?? username ?? "").trim();
-    if (!idRaw || !password) {
-      return res
-        .status(400)
-        .json({ message: "identifier and password are required." });
+    if (!email || !password) {
+      return res.status(400).json({
+        message: "email and password are required.",
+      });
     }
 
-    const isEmail = idRaw.includes("@");
-    const query = isEmail
-      ? { email: idRaw.toLowerCase(), is_active: true }
-      : { username: idRaw, is_active: true };
+    // find user by email
+    const customer = await customers.findOne({
+      email: email,
+      is_active: true,
+    });
 
-    const customer = await customers.findOne(query);
     if (!customer) {
       return res.status(401).json({ message: "Invalid credentials." });
     }
 
+    // compare password with hashed password
     const ok = await bcrypt.compare(password, customer.password_hash || "");
     if (!ok) {
       return res.status(401).json({ message: "Invalid credentials." });
     }
 
+    // create JWT token
     const token = jwt.sign(
       {
-        customerId: String(customer._id), // stringify for portability
+        customerId: customer._id,
         username: customer.username,
         role: "customer",
       },
@@ -124,7 +124,7 @@ router.post("/login", async (req, res) => {
       { $set: { last_login: new Date() } }
     );
 
-    return res.json({
+    res.json({
       message: "Login success",
       token,
       customer: {
@@ -137,28 +137,28 @@ router.post("/login", async (req, res) => {
     });
   } catch (err) {
     console.error("Error logging in customer:", err);
-    return res.status(500).json({ message: "Error logging in customer" });
+    res.status(500).json({ message: "Error logging in customer" });
   }
 });
 
-// ------------------------------
-// GET /api/customers/me  (auth)
-// ------------------------------
+// CUSTOMER: GET MY INFO
+// Final Endpoint: GET /api/customers/me
+// (protected - needs customer token)
+// ----------------------
 router.get("/me", authenticateToken, requireCustomer, async (req, res) => {
   try {
     const db = getDb();
     const customers = db.collection("customers");
-    const { customerId } = req.user || {};
-    if (!customerId || !isValidObjectId(customerId)) {
-      return res.status(400).json({ message: "Invalid customer token" });
-    }
 
     const customer = await customers.findOne({
-      _id: new mongodb.ObjectId(customerId),
+      _id: new mongodb.ObjectId(req.user.customerId),
     });
-    if (!customer) return res.status(404).json({ message: "Customer not found" });
 
-    return res.json({
+    if (!customer) {
+      return res.status(404).json({ message: "Customer not found" });
+    }
+
+    res.json({
       _id: customer._id,
       username: customer.username,
       email: customer.email,
@@ -173,7 +173,7 @@ router.get("/me", authenticateToken, requireCustomer, async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching customer info:", err);
-    return res.status(500).json({ message: "Error fetching customer info" });
+    res.status(500).json({ message: "Error fetching customer info" });
   }
 });
 

@@ -1,171 +1,134 @@
+// src/components/Register.jsx
 import React, { useState } from "react";
-import { registerCustomer, registerAdmin } from "../services/authService";
+// 💡 FIX 1: Restore the correct import from the service file
+import { registerAdmin } from "../services/authService";
+
+// --- The temporary local 'registerAdmin' function and 'API_BASE_URL' have been REMOVED ---
+
+// Initial state is simplified for Admin fields only
+const initialFormData = {
+  username: "",
+  email: "",
+  password: "",
+  full_name: "", // Used for admin (optional field)
+};
 
 function Register({ onSwitchToLogin }) {
-  const [formData, setFormData] = useState({
-    username: "",
-    email: "",
-    password: "",
-    first_name: "",
-    last_name: "",
-    full_name: "",
-    phone: "",
-    address: "",
-    role: "customer",
-  });
+  const [formData, setFormData] = useState(initialFormData);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    let next = { ...formData, [name]: value };
-    if (name === "role") {
-      if (value === "customer") next.full_name = "";
-      else if (value === "admin") {
-        next.first_name = "";
-        next.last_name = "";
-        next.phone = "";
-        next.address = "";
-      }
-    }
-    setFormData(next);
+    setFormData({ ...formData, [name]: value });
   };
 
   const handleRegister = async (e) => {
     e.preventDefault();
     setMessage("");
     setLoading(true);
+    setIsSuccess(false);
+
     try {
-      if (formData.role === "customer") {
-        const { username, email, password, first_name, last_name, phone, address } = formData;
-        if (!username || !email || !password || !first_name || !last_name) {
-          throw new Error("All required customer fields must be filled.");
-        }
-        await registerCustomer({ username, email, password, first_name, last_name, phone, address });
-        setMessage("Customer registration successful! You can now log in.");
-      } else {
-        const { username, email, password, full_name } = formData;
-        if (!username || !email || !password) {
-          throw new Error("Username, email, and password are required for Admin.");
-        }
-        await registerAdmin({ username, email, password, full_name, role: "admin" });
-        setMessage("Admin registration successful! You can now log in.");
+      const adminData = {
+        username: formData.username,
+        email: formData.email,
+        password: formData.password,
+        full_name: formData.full_name || undefined,
+      };
+
+      // 2. Call the Admin registration service
+      // Assuming registerAdmin returns { message, admin: { username, ... } }
+      const result = await registerAdmin(adminData);
+
+      // 💡 FIX 2: Check for the 'admin' object before reading its properties.
+      // The backend 'admin.js' should return { admin: { username: '...' } }
+      const newUsername = result.admin?.username || "New Admin";
+
+      setMessage(
+        `✅ Success! Admin account for '${newUsername}' created. Please login.`
+      );
+      setIsSuccess(true);
+      setFormData(initialFormData);
+
+      setTimeout(onSwitchToLogin, 3000);
+    } catch (err) {
+      // 💡 FIX 3: Improve error message extraction
+      // If the error comes from an Axios/fetch wrapper in authService,
+      // the message is usually on the error object itself.
+      let errorMessage =
+        err.message || "Registration failed due to an unknown error.";
+
+      // If the error object has a response (from Axios/fetch), try to get the server's error message
+      if (err.response && err.response.data && err.response.data.message) {
+        errorMessage = err.response.data.message;
       }
-      setTimeout(() => onSwitchToLogin(), 1000);
-    } catch (error) {
-      const errorMessage =
-        error.response?.data?.message || error.message || "Registration failed.";
-      setMessage(`Error: ${errorMessage}`);
+
+      setMessage(`❌ Registration Failed: ${errorMessage}`);
+      setIsSuccess(false);
     } finally {
       setLoading(false);
     }
   };
 
-  const isCustomer = formData.role === "customer";
-
   return (
     <div
       style={{
-        maxWidth: "450px",
+        maxWidth: "400px",
         margin: "50px auto",
-        padding: "20px",
-        border: "1px solid #ccc",
+        padding: "30px",
+        border: "1px solid #ddd",
         borderRadius: "8px",
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
       }}
     >
-      <h2>{isCustomer ? "Customer Registration" : "Admin Registration"}</h2>
-
-      <div style={{ marginBottom: "15px" }}>
-        <label>Register As:</label>
-        <select
-          name="role"
-          value={formData.role}
-          onChange={handleChange}
-          style={{ padding: "8px", marginLeft: "10px" }}
-        >
-          <option value="customer">Customer</option>
-          <option value="admin">Admin</option>
-        </select>
-      </div>
-
+      <h2 style={{ textAlign: "center", marginBottom: "30px" }}>
+        🔒 Admin Registration
+      </h2>
       <form onSubmit={handleRegister}>
+        {/* Username */}
         <input
           name="username"
           type="text"
-          placeholder="Username *"
+          placeholder="Username (Required)"
           value={formData.username}
           onChange={handleChange}
           required
-          style={{ width: "100%", padding: "8px", marginBottom: "10px" }}
+          style={{ width: "100%", padding: "8px", marginBottom: "20px" }}
         />
+
+        {/* Email */}
         <input
           name="email"
           type="email"
-          placeholder="Email *"
+          placeholder="Email (Required)"
           value={formData.email}
           onChange={handleChange}
           required
-          style={{ width: "100%", padding: "8px", marginBottom: "10px" }}
+          style={{ width: "100%", padding: "8px", marginBottom: "20px" }}
         />
+
+        {/* Password */}
         <input
           name="password"
           type="password"
-          placeholder="Password *"
+          placeholder="Password (Required)"
           value={formData.password}
           onChange={handleChange}
           required
-          style={{ width: "100%", padding: "8px", marginBottom: "10px" }}
+          style={{ width: "100%", padding: "8px", marginBottom: "20px" }}
         />
 
-        {isCustomer && (
-          <>
-            <input
-              name="first_name"
-              type="text"
-              placeholder="First Name *"
-              value={formData.first_name}
-              onChange={handleChange}
-              required
-              style={{ width: "100%", padding: "8px", marginBottom: "10px" }}
-            />
-            <input
-              name="last_name"
-              type="text"
-              placeholder="Last Name *"
-              value={formData.last_name}
-              onChange={handleChange}
-              required
-              style={{ width: "100%", padding: "8px", marginBottom: "10px" }}
-            />
-            <input
-              name="phone"
-              type="text"
-              placeholder="Phone (Optional)"
-              value={formData.phone}
-              onChange={handleChange}
-              style={{ width: "100%", padding: "8px", marginBottom: "10px" }}
-            />
-            <input
-              name="address"
-              type="text"
-              placeholder="Address (Optional)"
-              value={formData.address}
-              onChange={handleChange}
-              style={{ width: "100%", padding: "8px", marginBottom: "20px" }}
-            />
-          </>
-        )}
-
-        {!isCustomer && (
-          <input
-            name="full_name"
-            type="text"
-            placeholder="Full Name (Optional)"
-            value={formData.full_name}
-            onChange={handleChange}
-            style={{ width: "100%", padding: "8px", marginBottom: "20px" }}
-          />
-        )}
+        {/* Admin Specific Field: Full Name */}
+        <input
+          name="full_name"
+          type="text"
+          placeholder="Full Name (Optional)"
+          value={formData.full_name}
+          onChange={handleChange}
+          style={{ width: "100%", padding: "8px", marginBottom: "20px" }}
+        />
 
         <button
           type="submit"
@@ -176,13 +139,15 @@ function Register({ onSwitchToLogin }) {
             color: "white",
             border: "none",
             borderRadius: "4px",
+            cursor: "pointer",
+            width: "100%",
           }}
         >
-          {loading ? "Processing..." : "Register Account"}
+          {loading ? "Processing..." : "Register Admin"}
         </button>
       </form>
 
-      <p style={{ marginTop: "15px" }}>
+      <p style={{ marginTop: "15px", textAlign: "center" }}>
         Already have an account?
         <button
           onClick={onSwitchToLogin}
@@ -192,6 +157,7 @@ function Register({ onSwitchToLogin }) {
             border: "none",
             color: "#007bff",
             cursor: "pointer",
+            fontWeight: "bold",
           }}
         >
           Login here
@@ -202,7 +168,9 @@ function Register({ onSwitchToLogin }) {
         <p
           style={{
             marginTop: "15px",
-            color: message.startsWith("Error") ? "red" : "green",
+            color: isSuccess ? "green" : "red",
+            fontWeight: "bold",
+            textAlign: "center",
           }}
         >
           {message}

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import mongodb from "mongodb"; // 👈 FIX: Re-added for ObjectId use in the /me route
+import mongodb from "mongodb";
 import { getDb, isValidObjectId } from "../config/config.js";
 import {
   authenticateToken,

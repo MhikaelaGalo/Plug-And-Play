@@ -1,77 +1,74 @@
-// src/App.jsx  (recommended: remove the wrong import)
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import Login from "./components/Login";
 import Register from "./components/Register";
-import CustomerDashboard from "./components/CustomerDashboard";
 import AdminDashboard from "./components/AdminDashboard";
-import { logout, getAdminMe, getCustomerMe } from "./services/authService";
-// ❌ import "./styles.css";  // remove this line
 
-function App() {
+const HEADER_H = 64;
+
+export default function App() {
   const [currentView, setCurrentView] = useState("login");
-  const [role, setRole] = useState("guest");
-  const [user, setUser] = useState(null);
-  const [checking, setChecking] = useState(true);
+  const isLoggedIn = !!localStorage.getItem("adminToken");
 
-  useEffect(() => {
-    const probe = async () => {
-      try {
-        if (localStorage.getItem("adminToken")) {
-          const me = await getAdminMe(); setRole("admin"); setUser(me); return;
-        }
-        if (localStorage.getItem("customerToken")) {
-          const me = await getCustomerMe(); setRole("customer"); setUser(me); return;
-        }
-        setRole("guest");
-      } catch { setRole("guest"); setUser(null); }
-      finally { setChecking(false); }
-    };
-    probe();
-  }, []);
-
-  const isLoggedIn = role !== "guest";
-  const handleLogout = () => { logout(); setRole("guest"); setUser(null); setCurrentView("login"); };
+  if (isLoggedIn) return <AdminDashboard />;
 
   return (
-    <div>
-      <header className="header">
-        <div className="header__inner">
-          <div className="brand">E-Commerce App</div>
-          <div className="header__right">
-            {isLoggedIn && <span className="pill">Logged in as: <b>{role.toUpperCase()}</b></span>}
-            {isLoggedIn ? (
-              <button className="btn btn--danger" onClick={handleLogout}>Logout</button>
+    <div
+      style={{
+        minHeight: "100svh",
+        display: "grid",
+        gridTemplateRows: "auto 1fr",
+        background: "#0b1220",
+      }}
+    >
+      <header
+        style={{
+          height: HEADER_H,
+          minHeight: HEADER_H,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 20px",
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          color: "#e5e7eb",
+        }}
+      >
+        <h1 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>E-Commerce Admin Panel</h1>
+        <button
+          onClick={() => setCurrentView(v => (v === "login" ? "register" : "login"))}
+          style={{
+            border: "1px solid rgba(255,255,255,0.15)",
+            background: "transparent",
+            color: "#e5e7eb",
+            borderRadius: 8,
+            padding: "8px 12px",
+            cursor: "pointer",
+            fontWeight: 600,
+          }}
+        >
+          {currentView === "login" ? "Go to Register" : "Go to Login"}
+        </button>
+      </header>
+
+      {/* exact centering layer */}
+      <div style={{ position: "relative" }}>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "grid",
+            placeItems: "center",
+            padding: 16,
+          }}
+        >
+          <div style={{ width: "min(460px, 92vw)" }}>
+            {currentView === "login" ? (
+              <Login onSwitchToRegister={() => setCurrentView("register")} />
             ) : (
-              <button
-                className="btn btn--ghost"
-                onClick={() => setCurrentView(currentView === "login" ? "register" : "login")}
-              >
-                {currentView === "login" ? "Go to Register" : "Go to Login"}
-              </button>
+              <Register onSwitchToLogin={() => setCurrentView("login")} />
             )}
           </div>
         </div>
-      </header>
-
-      <main className="container">
-        {checking ? (
-          <p className="note">Checking session…</p>
-        ) : !isLoggedIn ? (
-          currentView === "login" ? (
-            <Login
-              onSwitchToRegister={() => setCurrentView("register")}
-              onLoggedIn={(nextRole, nextUser) => { setRole(nextRole); setUser(nextUser); }}
-            />
-          ) : (
-            <Register onSwitchToLogin={() => setCurrentView("login")} />
-          )
-        ) : role === "admin" ? (
-          <AdminDashboard user={user} />
-        ) : (
-          <CustomerDashboard user={user} />
-        )}
-      </main>
+      </div>
     </div>
   );
 }
-export default App;

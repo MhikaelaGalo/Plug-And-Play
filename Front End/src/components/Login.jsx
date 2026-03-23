@@ -1,102 +1,133 @@
-// FILE: src/components/Login.jsx  (styled + robust)
 import React, { useState } from "react";
-import {
-  loginCustomer,
-  loginAdmin,
-  getAdminMe,
-  getCustomerMe,
-} from "../services/authService";
+import { Lock, XCircle } from "lucide-react";
+import { loginAdmin } from "../services/authService";
 
-function Login({ onSwitchToRegister, onLoggedIn }) {
-  const [identifier, setIdentifier] = useState(""); // email or username
+export default function Login({ onSwitchToRegister }) {
+  const [usernameOrEmail, setUsernameOrEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isCustomer, setIsCustomer] = useState(true);
   const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [isError, setIsError] = useState(false);
 
-  async function handleLogin(e) {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setMessage("");
-    setBusy(true);
+    setIsError(false);
     try {
-      if (isCustomer) {
-        // Backend accepts usernameOrEmail OR email now
-        await loginCustomer({ usernameOrEmail: identifier, password });
-        const me = await getCustomerMe();
-        if (onLoggedIn) onLoggedIn("customer", me);
-        else window.location.reload(); // fallback for older App.jsx
-        setMessage(`Customer login successful! Welcome, ${me.username}`);
-      } else {
-        await loginAdmin({ usernameOrEmail: identifier, password });
-        const me = await getAdminMe();
-        if (onLoggedIn) onLoggedIn("admin", me);
-        else window.location.reload();
-        setMessage(`Admin login successful! Welcome, ${me.username}`);
-      }
-    } catch (error) {
-      const errorMessage =
-        error?.response?.data?.message || error.message || "Login failed.";
-      setMessage(`Error: ${errorMessage}`);
-    } finally {
-      setBusy(false);
+      await loginAdmin({ usernameOrEmail, password });
+      window.location.reload();
+    } catch (err) {
+      setIsError(true);
+      setMessage(err?.response?.data?.message || err?.message || "Login failed");
     }
-  }
+  };
 
   return (
-    <div className="card" style={{ maxWidth: 480, margin: "40px auto" }}>
-      <div className="row">
-        <h2 className="section-title" style={{ margin: 0 }}>
-          {isCustomer ? "Customer Login" : "Admin Login"}
-        </h2>
-        <button
-          className="btn btn--subtle right"
-          onClick={() => setIsCustomer(!isCustomer)}
-        >
-          Switch to {isCustomer ? "Admin" : "Customer"}
-        </button>
-      </div>
+    <div
+      style={{
+        margin: 0,
+        maxWidth: "100%",
+        border: "1px solid rgba(255,255,255,0.15)",
+        borderRadius: 12,
+        background: "rgba(16,24,40,0.85)",
+        boxShadow: "0 10px 30px rgba(0,0,0,.35)",
+        padding: 24,
+      }}
+    >
+      <h2 style={{ margin: "0 0 16px 0", fontSize: 22, fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}>
+        <Lock size={20} />
+        Admin Login
+      </h2>
 
-      <form className="form mt-2" onSubmit={handleLogin}>
-        <input
-          className="input"
-          placeholder="Email or Username"
-          value={identifier}
-          onChange={(e) => setIdentifier(e.target.value)}
-          required
-        />
-        <input
-          className="input"
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <button className="btn" type="submit" disabled={busy}>
-          {busy ? "Logging in…" : "Log In"}
+      <form onSubmit={handleLogin}>
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: "block", margin: "0 0 6px 0" }}>Username or Email:</label>
+          <input
+            type="text"
+            value={usernameOrEmail}
+            onChange={(e) => setUsernameOrEmail(e.target.value)}
+            required
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.15)",
+              outline: "none",
+              background: "#0b1220",
+              color: "#e5e7eb",
+            }}
+          />
+        </div>
+
+        <div style={{ marginBottom: 18 }}>
+          <label style={{ display: "block", margin: "0 0 6px 0" }}>Password:</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.15)",
+              outline: "none",
+              background: "#0b1220",
+              color: "#e5e7eb",
+            }}
+          />
+        </div>
+
+        <button
+          type="submit"
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            borderRadius: 8,
+            border: "none",
+            background: "linear-gradient(180deg,#4f46e5,#6366f1)",
+            color: "white",
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          Log In
         </button>
       </form>
 
-      <p className="note mt-2">
-        Don’t have an account?
-        <button className="btn btn--ghost" style={{ marginLeft: 8 }} onClick={onSwitchToRegister}>
-          Register
+      <div style={{ marginTop: 14, fontSize: 14 }}>
+        Don't have an account?{" "}
+        <button
+          onClick={onSwitchToRegister}
+          type="button"
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "#22c55e",
+            fontWeight: 700,
+            cursor: "pointer",
+            padding: 0,
+          }}
+        >
+          Register Admin here
         </button>
-      </p>
+      </div>
 
       {message && (
         <p
-          className="mt-2"
           style={{
-            color: message.startsWith("Error") ? "var(--danger)" : "var(--success)",
+            marginTop: 12,
+            color: isError ? "#f87171" : "#4ade80",
+            textAlign: "center",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
           }}
         >
+          {isError && <XCircle size={16} />}
           {message}
         </p>
       )}
     </div>
   );
 }
-
-export default Login;
-

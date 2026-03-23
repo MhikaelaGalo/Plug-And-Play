@@ -1,196 +1,154 @@
+// routes/products.js
+
 import { Router } from "express";
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
 import mongodb from "mongodb";
 import { getDb, isValidObjectId } from "../config/config.js";
 import { authenticateToken, requireAdmin } from "../middleware/auth.js";
+import multer from "multer";
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs"; // 💡 FIX: Import the file system module
 
 const router = Router();
 
-// CREATE PRODUCTS:
-// POST /api/products
-// ----------------------
-router.post(
-  "/", // 👈 FIXED PATH
-  authenticateToken,
-  requireAdmin,
-  async (req, res) => {
-    try {
-      const db = getDb(); // 👈 FIXED: Added getDb()
-      const products = db.collection("products");
+// --- ABSOLUTE PATH SETUP FOR WINDOWS/LINUX/MAC ---
+// This ensures that the file paths work correctly regardless of the OS
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// Assuming 'routes' folder is inside the project root
+const PROJECT_ROOT = path.join(__dirname, "..");
+// Set the final destination for files: backend/public/images/products
+const UPLOAD_DEST = path.join(PROJECT_ROOT, "public", "images", "products");
+// --------------------------------------------------
 
-      // Allow either a single object or an array of objects
-      const incoming = Array.isArray(req.body) ? req.body : [req.body];
+// ===============================================
+// MULTER CONFIGURATION (Image Upload Logic)
+// ===============================================
 
-      if (incoming.length === 0) {
-        return res.status(400).json({ message: "No products provided" });
+// Destination and Filenaming Logic
+const storage = multer.diskStorage({
+  // 💡 CRITICAL FIX: Dynamically create the directory if it doesn't exist
+  destination: (req, file, cb) => {
+    // Check if the directory exists
+    if (!fs.existsSync(UPLOAD_DEST)) {
+      try {
+        // Create the directory recursively (p: true)
+        fs.mkdirSync(UPLOAD_DEST, { recursive: true });
+        console.log(`Created directory: ${UPLOAD_DEST}`);
+      } catch (err) {
+        // Log any error during directory creation (e.g., permissions)
+        console.error("Error creating upload directory:", err);
+        return cb(err); // Pass error back to multer
       }
-
-      // Map each item to our cleaned product structure
-      const now = new Date();
-      const docs = incoming.map((p) => {
-        const unitPriceNumber = Number(p.unit_price);
-        const costPriceNumber =
-          p.cost_price !== undefined && p.cost_price !== null
-            ? Number(p.cost_price)
-            : null;
-
-        if (!p.product_name || Number.isNaN(unitPriceNumber)) {
-          throw new Error(
-            "Each product must have product_name and valid unit_price"
-          );
-        }
-
-        return {
-          product_name: p.product_name,
-          description: p.description || "",
-          category_id: p.category_id || null,
-          supplier_id: p.supplier_id || null,
-          unit_price: unitPriceNumber,
-          cost_price: costPriceNumber,
-          is_active: p.is_active === undefined ? true : Boolean(p.is_active),
-          brand: p.brand || null,
-          model: p.model || null,
-          specs: p.specs || {},
-          tags: Array.isArray(p.tags) ? p.tags : [],
-          created_at: now,
-          updated_at: now,
-        };
-      });
-
-      const result = await products.insertMany(docs);
-
-      res.status(201).json({
-        message: "Products created",
-        insertedCount: result.insertedCount,
-        ids: result.insertedIds,
-      });
-    } catch (err) {
-      console.error("Error creating products:", err);
-      res
-        .status(500)
-        .json({ message: "Error creating products", error: err.message });
     }
-  }
-);
+    // Now that we're sure it exists, proceed
+    cb(null, UPLOAD_DEST);
+  },
+  filename: (req, file, cb) => {
+    // Create a unique filename: fieldname-timestamp.ext
+    const extension = path.extname(file.originalname);
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, file.fieldname + "-" + uniqueSuffix + extension);
+  },
+});
 
-// READ PRODUCTS: LIST + SEARCH + PRICE FILTER
-// GET /api/products
+// Define the upload middleware
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // Limit file size to 5MB
+});
+
+// ===============================================
+// ROUTES
+// ===============================================
+
+// R: Read All Products (GET /api/products)
 router.get("/", async (req, res) => {
-  // 👈 FIXED PATH
   try {
-    const db = getDb(); // 👈 FIXED: Added getDb()
+    const db = getDb();
     const products = db.collection("products");
-    const { q, minPrice, maxPrice, categoryId, isActive } = req.query;
 
-    const filter = {};
-    if (isActive !== undefined) {
-      filter.is_active = isActive === "true";
-    } else {
-      filter.is_active = true; // Default: only show active products
-    }
+    // Standard MongoDB Aggregation Pipeline for JOIN/Population
+    const pipeline = [
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category_id",
+          foreignField: "_id",
+          as: "category_info",
+        },
+      },
+      {
+        $unwind: {
+          path: "$category_info",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "suppliers",
+          localField: "supplier_id",
+          foreignField: "_id",
+          as: "supplier_info",
+        },
+      },
+      {
+        $unwind: {
+          path: "$supplier_info",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          // Select all existing fields
+          _id: 1,
+          product_name: 1,
+          description: 1,
+          unit_price: 1,
+          cost_price: 1,
+          is_active: 1,
+          brand: 1,
+          model: 1,
+          specs: 1,
+          tags: 1,
+          image_url: 1,
+          created_at: 1,
+          updated_at: 1,
+          // Select only necessary fields from the joined collections
+          category_id: {
+            _id: "$category_info._id",
+            category_name: "$category_info.category_name",
+          },
+          supplier_id: {
+            _id: "$supplier_info._id",
+            supplier_name: "$supplier_info.supplier_name",
+          },
+        },
+      },
+    ];
 
-    // --- category filter ---
-    if (categoryId && isValidObjectId(categoryId)) {
-      filter.category_id = categoryId;
-    }
+    const allProducts = await products.aggregate(pipeline).toArray();
 
-    // --- keyword search (q) ---
-    if (q) {
-      const terms = q
-        .split(" ")
-        .map((t) => t.trim())
-        .filter((t) => t.length > 0);
-
-      filter.$and = terms.map((term) => {
-        const orConditions = [
-          { product_name: { $regex: term, $options: "i" } },
-          { description: { $regex: term, $options: "i" } },
-          { brand: { $regex: term, $options: "i" } },
-          { model: { $regex: term, $options: "i" } },
-          { "specs.os": { $regex: term, $options: "i" } },
-        ];
-        // if the term is all digits, also check numeric specs
-        if (/^\d+$/.test(term)) {
-          const num = Number(term);
-          orConditions.push({ "specs.storage_gb": num });
-          orConditions.push({ "specs.ram_gb": num });
-        }
-        return { $or: orConditions };
-      });
-    }
-
-    // --- numeric price filters (unit_price) ---
-    const priceFilter = {};
-    if (minPrice !== undefined) {
-      const min = Number(minPrice);
-      if (!Number.isNaN(min)) {
-        priceFilter.$gte = min;
-      }
-    }
-    if (maxPrice !== undefined) {
-      const max = Number(maxPrice);
-      if (!Number.isNaN(max)) {
-        priceFilter.$lte = max;
-      }
-    }
-    if (Object.keys(priceFilter).length > 0) {
-      filter.unit_price = priceFilter;
-    }
-
-    const data = await products.find(filter).toArray();
-    res.json(data);
+    res.json(allProducts);
   } catch (err) {
     console.error("Error fetching products:", err);
     res.status(500).json({ message: "Error fetching products" });
   }
 });
 
-// READ SINGLE PRODUCT
-// GET /api/products/:id
-router.get("/:id", async (req, res) => {
-  // 👈 FIXED PATH
-  try {
-    const db = getDb(); // 👈 FIXED: Added getDb()
-    const products = db.collection("products");
-    const { id } = req.params;
-
-    if (!isValidObjectId(id)) {
-      return res.status(400).json({ message: "Invalid product ID" });
-    }
-
-    const product = await products.findOne({ _id: new mongodb.ObjectId(id) });
-
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
-
-    res.json(product);
-  } catch (err) {
-    console.error("Error fetching product:", err);
-    res.status(500).json({ message: "Error fetching product" });
-  }
-});
-
-// UPDATE PRODUCTS:
-// PUT /api/products/:id
-// ----------------------
-router.put(
-  "/:id", // 👈 FIXED PATH
+// C: Create Product
+// POST /api/products
+router.post(
+  "/",
   authenticateToken,
   requireAdmin,
+  upload.single("product_image"), // <-- Handles the file upload
   async (req, res) => {
     try {
-      const db = getDb(); // 👈 FIXED: Added getDb()
+      const db = getDb();
       const products = db.collection("products");
-      const { id } = req.params;
 
-      if (!isValidObjectId(id)) {
-        return res.status(400).json({ message: "Invalid product ID" });
-      }
-
-      const updates = {};
-      const {
+      let {
         product_name,
         description,
         category_id,
@@ -204,20 +162,276 @@ router.put(
         tags,
       } = req.body;
 
-      // Only add to updates if the field is present in the request body
-      if (product_name !== undefined) updates.product_name = product_name;
-      if (description !== undefined) updates.description = description;
-      if (category_id !== undefined) updates.category_id = category_id;
-      if (supplier_id !== undefined) updates.supplier_id = supplier_id;
-      if (unit_price !== undefined) updates.unit_price = Number(unit_price);
-      if (cost_price !== undefined) updates.cost_price = Number(cost_price);
-      if (is_active !== undefined) updates.is_active = Boolean(is_active);
-      if (brand !== undefined) updates.brand = brand;
-      if (model !== undefined) updates.model = model;
-      if (specs !== undefined) updates.specs = specs;
-      if (tags !== undefined && Array.isArray(tags)) updates.tags = tags;
+      if (!product_name || !category_id || !supplier_id || !unit_price) {
+        return res
+          .status(400)
+          .json({
+            message:
+              "Product name, category, supplier, and unit price are required",
+          });
+      }
+
+      // Handle JSON strings from FormData sent by the frontend
+      try {
+        specs = specs ? JSON.parse(specs) : {};
+        tags = tags ? JSON.parse(tags) : [];
+      } catch (e) {
+        console.warn("Failed to parse JSON field from FormData:", e.message);
+      }
+
+      // Handle File Upload (req.file contains the file info)
+      let image_url = null;
+      if (req.file) {
+        // Construct the public URL path for the file
+        image_url = `/images/products/${req.file.filename}`;
+      }
+
+      const now = new Date();
+      const newProduct = {
+        product_name,
+        description,
+        category_id: isValidObjectId(category_id)
+          ? new mongodb.ObjectId(category_id)
+          : null,
+        supplier_id: isValidObjectId(supplier_id)
+          ? new mongodb.ObjectId(supplier_id)
+          : null,
+        unit_price: parseFloat(unit_price),
+        cost_price: parseFloat(cost_price),
+        is_active: is_active === "true",
+        brand,
+        model,
+        specs,
+        tags,
+        image_url, // Store the URL path
+        created_at: now,
+        updated_at: now,
+      };
+
+      const result = await products.insertOne(newProduct);
+
+      res.status(201).json({
+        message: "Product created successfully",
+        product: { _id: result.insertedId, ...newProduct },
+      });
+    } catch (err) {
+      console.error("Error creating product:", err);
+      // 💡 FIX: Ensure file is deleted if database save fails
+      if (req.file) {
+        try {
+          fs.unlinkSync(req.file.path);
+          console.log(
+            `Deleted uploaded file due to DB error: ${req.file.path}`
+          );
+        } catch (unlinkError) {
+          console.error(
+            "Failed to delete uploaded file after DB error:",
+            unlinkError
+          );
+        }
+      }
+      res.status(500).json({ message: "Error creating product" });
+    }
+  }
+);
+
+// R: Read Single Product
+// GET /api/products/:id
+router.get("/:id", async (req, res) => {
+  try {
+    const db = getDb();
+    const products = db.collection("products");
+    const { id } = req.params;
+
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ message: "Invalid product ID" });
+    }
+
+    // Standard MongoDB Aggregation Pipeline for JOIN/Population
+    const pipeline = [
+      {
+        $match: {
+          _id: new mongodb.ObjectId(id),
+        },
+      },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category_id",
+          foreignField: "_id",
+          as: "category_info",
+        },
+      },
+      {
+        $unwind: {
+          path: "$category_info",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "suppliers",
+          localField: "supplier_id",
+          foreignField: "_id",
+          as: "supplier_info",
+        },
+      },
+      {
+        $unwind: {
+          path: "$supplier_info",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          // Select all existing fields
+          _id: 1,
+          product_name: 1,
+          description: 1,
+          unit_price: 1,
+          cost_price: 1,
+          is_active: 1,
+          brand: 1,
+          model: 1,
+          specs: 1,
+          tags: 1,
+          image_url: 1,
+          created_at: 1,
+          updated_at: 1,
+          // Select only necessary fields from the joined collections
+          category_id: {
+            _id: "$category_info._id",
+            category_name: "$category_info.category_name",
+          },
+          supplier_id: {
+            _id: "$supplier_info._id",
+            supplier_name: "$supplier_info.supplier_name",
+          },
+        },
+      },
+    ];
+
+    const product = await products.aggregate(pipeline).next();
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    res.json(product);
+  } catch (err) {
+    console.error("Error fetching single product:", err);
+    res.status(500).json({ message: "Error fetching single product" });
+  }
+});
+
+// U: Update Product
+// PUT /api/products/:id
+router.put(
+  "/:id",
+  authenticateToken,
+  requireAdmin,
+  upload.single("product_image"), // <-- Handles the file upload
+  async (req, res) => {
+    // Variable to hold old image path if a new one is uploaded
+    let old_image_path = null;
+
+    try {
+      const db = getDb();
+      const products = db.collection("products");
+      const { id } = req.params;
+
+      if (!isValidObjectId(id)) {
+        return res.status(400).json({ message: "Invalid product ID" });
+      }
+
+      const updates = {};
+      const body = req.body;
+
+      // Map fields from request body to update object
+      if (body.product_name !== undefined)
+        updates.product_name = body.product_name;
+      if (body.description !== undefined)
+        updates.description = body.description;
+      if (body.brand !== undefined) updates.brand = body.brand;
+      if (body.model !== undefined) updates.model = body.model;
+
+      if (body.category_id && isValidObjectId(body.category_id)) {
+        updates.category_id = new mongodb.ObjectId(body.category_id);
+      }
+      if (body.supplier_id && isValidObjectId(body.supplier_id)) {
+        updates.supplier_id = new mongodb.ObjectId(body.supplier_id);
+      }
+
+      // Parse numbers
+      if (body.unit_price !== undefined) {
+        updates.unit_price = parseFloat(body.unit_price);
+      }
+      if (body.cost_price !== undefined) {
+        updates.cost_price = parseFloat(body.cost_price);
+      }
+
+      // Parse boolean (comes as string from FormData)
+      if (body.is_active !== undefined) {
+        updates.is_active =
+          body.is_active === "true" || body.is_active === true;
+      }
+
+      // Handle JSON strings for complex types
+      if (body.specs) {
+        try {
+          updates.specs = JSON.parse(body.specs);
+        } catch (e) {
+          /* ignore parse error */
+        }
+      }
+      if (body.tags) {
+        try {
+          updates.tags = JSON.parse(body.tags);
+        } catch (e) {
+          /* ignore parse error */
+        }
+      }
+
+      // Handle New File Upload or Image Removal
+      if (req.file) {
+        // New file uploaded: Construct the public URL path
+        updates.image_url = `/images/products/${req.file.filename}`;
+
+        // Fetch the existing product to get the old image URL for deletion
+        const existingProduct = await products.findOne({
+          _id: new mongodb.ObjectId(id),
+        });
+        if (existingProduct && existingProduct.image_url) {
+          // Calculate the absolute path of the old file for later deletion
+          old_image_path = path.join(
+            PROJECT_ROOT,
+            "public",
+            existingProduct.image_url
+          );
+        }
+      } else if (body.image_url === "") {
+        // Explicit image removal requested (frontend sends empty string to clear the field)
+        updates.image_url = null;
+
+        // Fetch the existing product to get the old image URL for deletion
+        const existingProduct = await products.findOne({
+          _id: new mongodb.ObjectId(id),
+        });
+        if (existingProduct && existingProduct.image_url) {
+          // Calculate the absolute path of the old file for deletion
+          old_image_path = path.join(
+            PROJECT_ROOT,
+            "public",
+            existingProduct.image_url
+          );
+        }
+      } else if (body.image_url !== undefined && body.image_url !== null) {
+        // If body.image_url is present and not empty/null, it means the old URL is preserved.
+        // No action needed for image_url update.
+      }
 
       if (Object.keys(updates).length === 0) {
+        // If no file was uploaded and no fields were changed
         return res
           .status(400)
           .json({ message: "No valid fields provided for update" });
@@ -231,49 +445,108 @@ router.put(
       );
 
       if (result.matchedCount === 0) {
+        // If product not found, delete the newly uploaded file
+        if (req.file) {
+          fs.unlinkSync(req.file.path);
+        }
         return res.status(404).json({ message: "Product not found" });
+      }
+
+      // SUCCESS: If a file was uploaded or an image was removed, delete the old file
+      if (old_image_path && fs.existsSync(old_image_path)) {
+        try {
+          fs.unlinkSync(old_image_path);
+          console.log(`Successfully deleted old file: ${old_image_path}`);
+        } catch (unlinkError) {
+          // This is not a critical error, just log it.
+          console.warn("Failed to delete old product image file:", unlinkError);
+        }
       }
 
       res.json({ message: "Product updated successfully" });
     } catch (err) {
       console.error("Error updating product:", err);
+      // On update failure, delete the newly uploaded file (if one exists)
+      if (req.file) {
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (unlinkError) {
+          console.error(
+            "Failed to delete uploaded file after DB error:",
+            unlinkError
+          );
+        }
+      }
       res.status(500).json({ message: "Error updating product" });
     }
   }
 );
 
-// DELETE PRODUCTS (Soft Delete):
+// D: Delete Product (Soft Delete)
 // DELETE /api/products/:id
-// ----------------------
-router.delete(
-  "/:id", // 👈 FIXED PATH
-  authenticateToken,
-  requireAdmin,
-  async (req, res) => {
-    try {
-      const db = getDb(); // 👈 FIXED: Added getDb()
-      const products = db.collection("products");
-      const { id } = req.params;
+router.delete("/:id", authenticateToken, requireAdmin, async (req, res) => {
+  let image_url_to_delete = null;
+  try {
+    const db = getDb();
+    const products = db.collection("products");
+    const { id } = req.params;
 
-      if (!isValidObjectId(id)) {
-        return res.status(400).json({ message: "Invalid product ID" });
-      }
-
-      const result = await products.updateOne(
-        { _id: new mongodb.ObjectId(id) },
-        { $set: { is_active: false, updated_at: new Date() } }
-      );
-
-      if (result.matchedCount === 0) {
-        return res.status(404).json({ message: "Product not found" });
-      }
-
-      res.json({ message: "Product deactivated (is_active: false)" });
-    } catch (err) {
-      console.error("Error deleting product:", err);
-      res.status(500).json({ message: "Error deleting product" });
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ message: "Invalid product ID" });
     }
+
+    // 1. Find the product to check if it has an image
+    const existingProduct = await products.findOne({
+      _id: new mongodb.ObjectId(id),
+    });
+
+    if (!existingProduct) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    if (existingProduct.image_url) {
+      image_url_to_delete = existingProduct.image_url;
+    }
+
+    // 2. Perform soft delete (set is_active to false)
+    const result = await products.updateOne(
+      { _id: new mongodb.ObjectId(id) },
+      { $set: { is_active: false, updated_at: new Date() } }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // 3. Delete the file from the disk (optional for soft delete, but good for cleanup)
+    if (image_url_to_delete) {
+      const absolute_path = path.join(
+        PROJECT_ROOT,
+        "public",
+        image_url_to_delete
+      );
+      if (fs.existsSync(absolute_path)) {
+        try {
+          fs.unlinkSync(absolute_path);
+          console.log(
+            `Successfully deleted image on soft delete: ${absolute_path}`
+          );
+        } catch (unlinkError) {
+          console.warn(
+            "Failed to delete product image file during soft delete:",
+            unlinkError
+          );
+        }
+      }
+    }
+
+    res.json({
+      message: "Product deleted successfully (is_active set to false)",
+    });
+  } catch (err) {
+    console.error("Error deleting product:", err);
+    res.status(500).json({ message: "Error deleting product" });
   }
-);
+});
 
 export default router;

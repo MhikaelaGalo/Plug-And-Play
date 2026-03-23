@@ -1,6 +1,8 @@
+// routes/inventory.js
+
 import { Router } from "express";
 import mongodb from "mongodb";
-import { getDb, isValidObjectId } from "../config/config.js"; // 👈 FIXED IMPORT
+import { getDb, isValidObjectId } from "../config/config.js";
 import { authenticateToken, requireAdmin } from "../middleware/auth.js";
 
 const router = Router();
@@ -78,7 +80,43 @@ router.get("/", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const db = getDb();
     const inventory = db.collection("inventory");
-    const data = await inventory.find({}).toArray();
+
+    // 💡 MODIFIED: Use aggregation to join inventory records with the product name
+    const pipeline = [
+      {
+        $lookup: {
+          from: "products", // The collection to join
+          localField: "product_id", // Field from the inventory document
+          foreignField: "_id", // Field from the products document
+          as: "product_info", // Array field containing the joined product
+        },
+      },
+      {
+        $unwind: {
+          path: "$product_info",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          // Keep all existing fields from the inventory record
+          _id: 1,
+          stock_quantity: 1,
+          reorder_level: 1,
+          max_stock_level: 1,
+          last_restocked: 1,
+          updated_at: 1,
+          // Project the product details under product_id
+          product_id: {
+            _id: "$product_info._id",
+            product_name: "$product_info.product_name",
+            // Include other necessary fields from product_info if needed
+          },
+        },
+      },
+    ];
+
+    const data = await inventory.aggregate(pipeline).toArray();
 
     res.json(data);
   } catch (err) {
@@ -134,8 +172,13 @@ router.put("/:id", authenticateToken, requireAdmin, async (req, res) => {
       updates.stock_quantity = Number(stock_quantity);
     if (reorder_level !== undefined)
       updates.reorder_level = Number(reorder_level);
-    if (max_stock_level !== undefined)
-      updates.max_stock_level = Number(max_stock_level);
+
+    // Handle max_stock_level being explicitly set to null (or empty string in JSON, which is treated as undefined here)
+    if (max_stock_level !== undefined) {
+      // If the frontend sends null, we store null. If it sends a number, we store the number.
+      updates.max_stock_level =
+        max_stock_level === null ? null : Number(max_stock_level);
+    }
 
     // Manual update to restock date (e.g., when a shipment arrives)
     if (last_restocked !== undefined && last_restocked)

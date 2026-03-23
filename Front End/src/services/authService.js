@@ -1,40 +1,35 @@
+// src/services/authService.js
 import api from "./api";
 
-const CUSTOMER_BASE = "/customers";
-const ADMIN_BASE = "/admin";
+const ADMIN_AUTH_BASE = "/admin"; // This resolves to /api/admin
 
-// Customer
-export async function registerCustomer(payload) {
-  const { data } = await api.post(`${CUSTOMER_BASE}/register`, payload);
-  return data;
-}
-export async function loginCustomer(credentials) {
-  const { data } = await api.post(`${CUSTOMER_BASE}/login`, credentials);
-  localStorage.setItem("customerToken", data.token);
-  return data.customer;
-}
-export async function getCustomerMe() {
-  const { data } = await api.get(`${CUSTOMER_BASE}/me`);
-  return data;
+// --- ADMIN FUNCTIONS ---
+
+export async function registerAdmin(adminData) {
+  // POST /api/admin/register
+  const response = await api.post(`${ADMIN_AUTH_BASE}/register`, adminData);
+  return response.data;
 }
 
-// Admin
-export async function registerAdmin(payload) {
-  const { data } = await api.post(`${ADMIN_BASE}/register`, payload);
-  return data;
-}
 export async function loginAdmin(credentials) {
-  const { data } = await api.post(`${ADMIN_BASE}/login`, credentials);
-  localStorage.setItem("adminToken", data.token);
-  return data.admin;
-}
-export async function getAdminMe() {
-  const { data } = await api.get(`${ADMIN_BASE}/me`);
-  return data;
+  // POST /api/admin/login
+  const response = await api.post(`${ADMIN_AUTH_BASE}/login`, credentials);
+
+  // Store the admin token and clear customer token for safety
+  localStorage.setItem("adminToken", response.data.token);
+  localStorage.removeItem("customerToken");
+  return response.data.admin;
 }
 
-// Shared
+export async function getAdminInfo() {
+  // GET /api/admin/me
+  const response = await api.get(`${ADMIN_AUTH_BASE}/me`);
+  return response.data;
+}
+
 export function logout() {
-  localStorage.removeItem("customerToken");
+  // Clear only the admin token
   localStorage.removeItem("adminToken");
 }
+
+// NOTE: All customer functions (registerCustomer, loginCustomer, getCustomerInfo) are removed.
