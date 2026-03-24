@@ -15,7 +15,7 @@ export async function connectToDb() {
   db = client.db(dbName);
 
   console.log("✅ Connected to MongoDB");
-  console.log("Using DB:", dbName);
+  console.log("Using DB:", PlugAndPlay);
 
   return db;
 }
