@@ -687,26 +687,6 @@ function ProductsModule({ onBack }) {
         Product Management
       </h2>
 
-      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-        <button
-          onClick={onBack}
-          disabled={loading}
-          style={{
-            ...btn,
-            backgroundColor: "#6c757d",
-            color: "white",
-            border: "none",
-          }}
-        >
-          <ArrowLeft size={15} />
-          Back to Dashboard
-        </button>
-        <button onClick={fetchData} disabled={loading} style={btn}>
-          <RefreshCw size={15} />
-          Refresh Data
-        </button>
-      </div>
-
       {message && (
         <p
           style={{
