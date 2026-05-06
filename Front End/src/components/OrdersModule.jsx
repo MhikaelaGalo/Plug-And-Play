@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { fetchAdminOrders, updateOrderStatus } from "../services/dataService";
 import {
-  ArrowLeft,
   FileText,
   CheckCircle,
   XOctagon,
@@ -427,35 +426,15 @@ function OrdersModule({ onBack }) {
 
   return (
     <div style={{ padding: "20px" }}>
-      <button
-        onClick={onBack}
+    
+     <h2
         style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          marginBottom: "20px",
-          padding: "8px 15px",
-          backgroundColor: "#6c757d",
-          color: "white",
-          border: "none",
-          borderRadius: "6px",
-          fontWeight: 600,
-          fontSize: 13,
-          cursor: "pointer",
-        }}
-      >
-        <ArrowLeft size={15} />
-        Back to Dashboard
-      </button>
-
-      <h2
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          color: "#e5e7eb",
-        }}
-      >
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        color: "#e5e7eb",
+        marginTop: 0,
+        }}>
         <FileText size={22} />
         Order Management
       </h2>
