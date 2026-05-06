@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from "react";
 import {
   Handshake,
-  ArrowLeft,
   Pencil,
   Trash2,
   CheckCircle,
@@ -114,6 +113,7 @@ function SuppliersModule({ onBack }) {
   const loadSuppliers = async () => {
     setError(null);
     setLoading(true);
+
     try {
       const data = await fetchSuppliers();
       setSuppliers(data);
@@ -130,14 +130,20 @@ function SuppliersModule({ onBack }) {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData({ ...formData, [name]: type === "checkbox" ? checked : value });
+
+    setFormData({
+      ...formData,
+      [name]: type === "checkbox" ? checked : value,
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     setLoading(true);
     setError(null);
     setSuccessMsg(null);
+
     try {
       if (isEditing) {
         await updateSupplier(currentId, { ...formData });
@@ -146,6 +152,7 @@ function SuppliersModule({ onBack }) {
         await createSupplier({ ...formData });
         setSuccessMsg("Supplier created successfully!");
       }
+
       handleCancelEdit();
       await loadSuppliers();
     } catch (err) {
@@ -164,22 +171,27 @@ function SuppliersModule({ onBack }) {
       address: supplier.address || "",
       is_active: supplier.is_active,
     });
+
     setIsEditing(true);
     setCurrentId(supplier._id);
     setSuccessMsg(null);
+
     window.scrollTo(0, 0);
   };
 
   const handleDelete = async (id) => {
     if (
       !window.confirm(
-        "Are you sure you want to soft-delete/deactivate this supplier?",
+        "Are you sure you want to soft-delete/deactivate this supplier?"
       )
-    )
+    ) {
       return;
+    }
+
     setLoading(true);
     setError(null);
     setSuccessMsg(null);
+
     try {
       await deleteSupplier(id);
       setSuccessMsg("Supplier deactivated successfully!");
@@ -206,7 +218,7 @@ function SuppliersModule({ onBack }) {
   }
 
   return (
-    <div style={{ padding: "20px", maxWidth: "1100px", margin: "0 auto" }}>
+    <div style={{ padding: "20px" }}>
       {/* Header */}
       <h2
         style={{
@@ -215,28 +227,12 @@ function SuppliersModule({ onBack }) {
           gap: 8,
           color: T.text,
           marginBottom: 16,
+          marginTop: 0,
         }}
       >
         <Handshake size={22} />
         Supplier Management
       </h2>
-
-      {/* Back button */}
-      <div style={{ marginBottom: 20 }}>
-        <button
-          onClick={onBack}
-          disabled={loading}
-          style={{
-            ...btn,
-            backgroundColor: "#6c757d",
-            color: "white",
-            border: "none",
-          }}
-        >
-          <ArrowLeft size={15} />
-          Back to Dashboard
-        </button>
-      </div>
 
       {/* Feedback messages */}
       {successMsg && (
@@ -250,9 +246,11 @@ function SuppliersModule({ onBack }) {
             marginBottom: 12,
           }}
         >
-          <CheckCircle size={16} /> {successMsg}
+          <CheckCircle size={16} />
+          {successMsg}
         </p>
       )}
+
       {error && (
         <p
           style={{
@@ -264,7 +262,8 @@ function SuppliersModule({ onBack }) {
             marginBottom: 12,
           }}
         >
-          <XCircle size={16} /> {error}
+          <XCircle size={16} />
+          {error}
         </p>
       )}
 
@@ -282,6 +281,7 @@ function SuppliersModule({ onBack }) {
             ? `Edit Supplier: ...${currentId?.slice(-4)}`
             : "Create New Supplier"}
         </h3>
+
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>
           {/* Supplier Name - full width */}
           <div>
@@ -300,7 +300,11 @@ function SuppliersModule({ onBack }) {
 
           {/* Contact Person + Phone */}
           <div
-            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 12,
+            }}
           >
             <div>
               <label style={labelStyle}>Contact Person</label>
@@ -314,6 +318,7 @@ function SuppliersModule({ onBack }) {
                 style={inputStyle}
               />
             </div>
+
             <div>
               <label style={labelStyle}>Phone</label>
               <input
@@ -355,7 +360,7 @@ function SuppliersModule({ onBack }) {
             />
           </div>
 
-          {/* Is Active (edit mode only) */}
+          {/* Is Active - edit mode only */}
           {isEditing && (
             <div>
               <label
@@ -405,9 +410,10 @@ function SuppliersModule({ onBack }) {
               {loading
                 ? "Processing..."
                 : isEditing
-                  ? "Save Supplier Changes"
-                  : "Create Supplier"}
+                ? "Save Supplier Changes"
+                : "Create Supplier"}
             </button>
+
             {isEditing && (
               <button
                 type="button"
@@ -426,6 +432,7 @@ function SuppliersModule({ onBack }) {
       <h3 style={{ color: T.text, marginBottom: 12 }}>
         Supplier List ({suppliers.length} Total)
       </h3>
+
       {loading && <p style={{ color: T.textDim }}>Loading suppliers...</p>}
 
       <div
@@ -436,7 +443,11 @@ function SuppliersModule({ onBack }) {
         }}
       >
         <table
-          style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            fontSize: 13,
+          }}
         >
           <thead>
             <tr style={{ background: "rgba(255,255,255,0.03)" }}>
@@ -456,16 +467,20 @@ function SuppliersModule({ onBack }) {
               ))}
             </tr>
           </thead>
+
           <tbody>
             {suppliers.map((supplier) => (
               <tr
                 key={supplier._id}
-                style={{ borderBottom: `1px solid rgba(255,255,255,0.05)` }}
+                style={{
+                  borderBottom: `1px solid rgba(255,255,255,0.05)`,
+                }}
               >
                 <td style={{ padding: "12px 14px" }}>
                   <div style={{ fontWeight: 700, color: T.text }}>
                     {supplier.supplier_name}
                   </div>
+
                   <span
                     style={{
                       display: "inline-block",
@@ -483,6 +498,7 @@ function SuppliersModule({ onBack }) {
                     {supplier.is_active ? "ACTIVE" : "INACTIVE"}
                   </span>
                 </td>
+
                 <td
                   style={{
                     padding: "12px 14px",
@@ -496,12 +512,14 @@ function SuppliersModule({ onBack }) {
                       {supplier.contact_person}
                     </div>
                   )}
+
                   {supplier.email && (
                     <div>
                       <span style={{ color: T.textDim }}>Email:</span>{" "}
                       {supplier.email}
                     </div>
                   )}
+
                   {supplier.phone && (
                     <div>
                       <span style={{ color: T.textDim }}>Phone:</span>{" "}
@@ -509,9 +527,11 @@ function SuppliersModule({ onBack }) {
                     </div>
                   )}
                 </td>
+
                 <td style={{ padding: "12px 14px", color: T.textDim }}>
                   {supplier.address || "N/A"}
                 </td>
+
                 <td style={{ padding: "12px 14px" }}>
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
@@ -519,8 +539,10 @@ function SuppliersModule({ onBack }) {
                       style={btnWarn}
                       disabled={loading}
                     >
-                      <Pencil size={13} /> Edit
+                      <Pencil size={13} />
+                      Edit
                     </button>
+
                     <button
                       onClick={() => handleDelete(supplier._id)}
                       style={supplier.is_active ? btnDanger : btnDisabled}
@@ -535,6 +557,7 @@ function SuppliersModule({ onBack }) {
             ))}
           </tbody>
         </table>
+
         {!loading && suppliers.length === 0 && (
           <div style={{ padding: 20, color: T.textDim }}>
             No suppliers found.
