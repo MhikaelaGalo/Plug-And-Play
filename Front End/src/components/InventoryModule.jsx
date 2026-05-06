@@ -1,7 +1,16 @@
 // src/components/InventoryModule.jsx
 
 import React, { useState, useEffect } from "react";
-import { BarChart2, ArrowLeft, RefreshCw, Pencil, Trash2, CheckCircle, XCircle, AlertTriangle, TrendingUp } from "lucide-react";
+import { 
+  BarChart2, 
+  RefreshCw, 
+  Pencil, 
+  Trash2, 
+  CheckCircle, 
+  XCircle, 
+  AlertTriangle, 
+  TrendingUp 
+} from "lucide-react";
 import {
   fetchInventory,
   createInventory,
@@ -389,21 +398,6 @@ function InventoryModule({ onBack }) {
         <BarChart2 size={22} />
         Inventory Management
       </h2>
-
-      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-        <button
-          onClick={onBack}
-          disabled={loading}
-          style={{ ...btn, backgroundColor: "#6c757d", color: "white", border: "none" }}
-        >
-          <ArrowLeft size={15} />
-          Back to Dashboard
-        </button>
-        <button onClick={fetchData} disabled={loading} style={btn}>
-          <RefreshCw size={15} />
-          Refresh Data
-        </button>
-      </div>
 
       {message && (
         <p style={{ display: "flex", alignItems: "center", gap: 6, color: T.ok, fontWeight: "bold", marginBottom: 12 }}>
