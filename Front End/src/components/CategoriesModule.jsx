@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from "react";
 import {
   Folder,
-  ArrowLeft,
   Pencil,
   Trash2,
   XCircle,
@@ -118,12 +117,14 @@ function CategoriesModule({ onBack }) {
     category_name: "",
     description: "",
   });
+
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState(null);
 
   const loadCategories = async () => {
     setLoading(true);
     setError(null);
+
     try {
       const data = await fetchCategories();
       setCategories(data);
@@ -144,9 +145,11 @@ function CategoriesModule({ onBack }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     setLoading(true);
     setError(null);
     setSuccessMsg(null);
+
     try {
       if (isEditing) {
         await updateCategory(currentId, formData);
@@ -155,9 +158,11 @@ function CategoriesModule({ onBack }) {
         await createCategory(formData);
         setSuccessMsg("Category created successfully!");
       }
+
       setFormData({ category_name: "", description: "" });
       setIsEditing(false);
       setCurrentId(null);
+
       await loadCategories();
     } catch (err) {
       setError(err.message);
@@ -171,21 +176,27 @@ function CategoriesModule({ onBack }) {
       category_name: category.category_name,
       description: category.description,
     });
+
     setIsEditing(true);
     setCurrentId(category._id);
     setSuccessMsg(null);
+
     window.scrollTo(0, 0);
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to soft-delete this category?"))
+    if (!window.confirm("Are you sure you want to soft-delete this category?")) {
       return;
+    }
+
     setLoading(true);
     setError(null);
     setSuccessMsg(null);
+
     try {
       await deleteCategory(id);
       setSuccessMsg("Category deleted successfully!");
+
       await loadCategories();
     } catch (err) {
       setError(err.message);
@@ -201,7 +212,7 @@ function CategoriesModule({ onBack }) {
   };
 
   return (
-    <div style={{ padding: "20px", maxWidth: "860px", margin: "0 auto" }}>
+    <div style={{ padding: "20px" }}>
       {/* Header */}
       <h2
         style={{
@@ -216,18 +227,6 @@ function CategoriesModule({ onBack }) {
         Category Management
       </h2>
 
-      {/* Back button */}
-      <div style={{ marginBottom: 20 }}>
-        <button
-          onClick={onBack}
-          style={{ ...styles.button, backgroundColor: "#6c757d" }}
-          disabled={loading}
-        >
-          <ArrowLeft size={15} />
-          Back to Dashboard
-        </button>
-      </div>
-
       {/* Feedback messages */}
       {successMsg && (
         <p
@@ -240,9 +239,11 @@ function CategoriesModule({ onBack }) {
             marginBottom: 12,
           }}
         >
-          <CheckCircle size={16} /> {successMsg}
+          <CheckCircle size={16} />
+          {successMsg}
         </p>
       )}
+
       {error && (
         <p
           style={{
@@ -254,7 +255,8 @@ function CategoriesModule({ onBack }) {
             marginBottom: 12,
           }}
         >
-          <XCircle size={16} /> {error}
+          <XCircle size={16} />
+          {error}
         </p>
       )}
 
@@ -270,7 +272,9 @@ function CategoriesModule({ onBack }) {
         >
           {isEditing ? "Edit Category" : "Create New Category"}
         </h3>
+
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>
+          {/* Row 1 - Name full width */}
           <div>
             <label style={labelStyle}>Category Name *</label>
             <input
@@ -284,6 +288,8 @@ function CategoriesModule({ onBack }) {
               disabled={loading}
             />
           </div>
+
+          {/* Row 2 - Description full width */}
           <div>
             <label style={labelStyle}>Description</label>
             <textarea
@@ -295,15 +301,17 @@ function CategoriesModule({ onBack }) {
               disabled={loading}
             />
           </div>
+
+          {/* Row 3 - Button full width */}
           <div style={{ display: "flex", gap: 10 }}>
             <button
               type="submit"
               disabled={loading}
               style={{
                 ...btnPrimary,
-                flexGrow: 1,
+                width: "100%",
                 justifyContent: "center",
-                padding: "10px 16px",
+                padding: "12px 16px",
                 background: isEditing
                   ? "linear-gradient(180deg, #b45309, #f59e0b)"
                   : `linear-gradient(180deg, ${T.brand}, ${T.brandAlt})`,
@@ -312,9 +320,10 @@ function CategoriesModule({ onBack }) {
               {loading
                 ? "Processing..."
                 : isEditing
-                  ? "Save Changes"
-                  : "Create Category"}
+                ? "Save Changes"
+                : "Create Category"}
             </button>
+
             {isEditing && (
               <button
                 type="button"
@@ -333,6 +342,7 @@ function CategoriesModule({ onBack }) {
       <h3 style={{ color: T.text, marginBottom: 12 }}>
         Category List ({categories.length} Total)
       </h3>
+
       {loading && <p style={{ color: T.textDim }}>Loading categories...</p>}
 
       <div style={{ ...panel, overflow: "hidden" }}>
@@ -359,6 +369,7 @@ function CategoriesModule({ onBack }) {
                 <div style={{ fontWeight: 700, color: T.text }}>
                   {category.category_name}
                 </div>
+
                 <div style={{ fontSize: 12, color: T.textDim, marginTop: 3 }}>
                   ID: {category._id} &nbsp;•&nbsp;
                   <span style={{ color: category.is_active ? T.ok : T.danger }}>
@@ -366,20 +377,24 @@ function CategoriesModule({ onBack }) {
                   </span>
                 </div>
               </div>
+
               <div style={{ display: "flex", gap: 8 }}>
                 <button
                   onClick={() => handleEdit(category)}
                   style={btnWarn}
                   disabled={loading}
                 >
-                  <Pencil size={13} /> Edit
+                  <Pencil size={13} />
+                  Edit
                 </button>
+
                 <button
                   onClick={() => handleDelete(category._id)}
                   style={btnDanger}
                   disabled={loading}
                 >
-                  <Trash2 size={13} /> Delete
+                  <Trash2 size={13} />
+                  Delete
                 </button>
               </div>
             </div>
